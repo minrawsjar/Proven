@@ -230,7 +230,52 @@
   ::-webkit-scrollbar-thumb { background: rgba(0, 230, 118, 0.15); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0, 230, 118, 0.3); }
 
-  /* ═══ TICKER ═══ */
+  /* ═══ MARQUEE ═══ */
+  .marquee-container {
+    overflow: hidden;
+    position: relative;
+    padding: 14px 0;
+  }
+  .marquee-container::before,
+  .marquee-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 120px;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .marquee-container::before {
+    left: 0;
+    background: linear-gradient(to right, #030B06, transparent);
+  }
+  .marquee-container::after {
+    right: 0;
+    background: linear-gradient(to left, #030B06, transparent);
+  }
+  .marquee-track {
+    display: inline-flex;
+    animation: marqueeScroll 40s linear infinite;
+    will-change: transform;
+  }
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+  .marquee-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    padding: 0 24px;
+    cursor: default;
+    transition: opacity 0.2s;
+  }
+  .marquee-item:hover {
+    opacity: 1;
+  }
+
+  /* Keep old ticker for backward compat */
   .ticker-wrap { overflow: hidden; white-space: nowrap; }
   .ticker-content { display: inline-flex; animation: ticker 30s linear infinite; }
   .ticker-content:hover { animation-play-state: paused; }
@@ -321,4 +366,9 @@
   .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+}
+
+@keyframes marqueeScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
 }

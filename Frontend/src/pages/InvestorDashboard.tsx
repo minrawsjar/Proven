@@ -4,6 +4,7 @@ import { useVerifyStore } from '../store/verifyStore'
 import { Card } from '../components/Card'
 import { ProgressBar } from '../components/ProgressBar'
 import { Badge } from '../components/Badge'
+import { Search, Siren, Target, ShieldCheck, ScrollText, Copy, Check } from 'lucide-react'
 
 export function InvestorDashboard() {
   const { address } = useParams()
@@ -64,7 +65,7 @@ export function InvestorDashboard() {
 
         <div className="flex gap-3">
           <div className="relative flex-1">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20">🔍</span>
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
             <input
               className="input-glow w-full !pl-12 font-mono"
               placeholder="0x..."
@@ -91,7 +92,7 @@ export function InvestorDashboard() {
             <div className="animate-fade-up opacity-0 p-5 rounded-2xl bg-red-500/5 border border-red-500/30 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-red-500 animate-pulse" />
               <div className="flex items-start gap-4 ml-4">
-                <span className="text-3xl">🚨</span>
+                <Siren className="w-8 h-8 text-red-400 flex-shrink-0" />
                 <div>
                   <h3 className="font-black text-red-400 text-lg mb-1">RAGE LOCK ACTIVE</h3>
                   <p className="text-red-200/60 text-sm mb-1">
@@ -145,7 +146,9 @@ export function InvestorDashboard() {
           {/* Milestone Tracker */}
           <Card className="!p-8 animate-fade-up opacity-0">
             <div className="flex items-center gap-3 mb-8">
-              <span className="text-2xl">🎯</span>
+              <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+                <Target className="w-5 h-5 text-brand" />
+              </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Milestone Tracker</h3>
                 <p className="text-white/30 text-sm">On-chain conditions monitored by Reactive SC</p>
@@ -166,7 +169,7 @@ export function InvestorDashboard() {
                         </p>
                       </div>
                       <Badge variant={m.isComplete ? 'success' : 'info'}>
-                        {m.isComplete ? '✓ Complete' : `${pct.toFixed(0)}%`}
+                        {m.isComplete ? <span className="inline-flex items-center gap-1"><Check className="w-3 h-3" /> Complete</span> : `${pct.toFixed(0)}%`}
                       </Badge>
                     </div>
                     <ProgressBar value={pct} color={colors[i]} size="md" />
@@ -182,7 +185,9 @@ export function InvestorDashboard() {
           {/* Risk Score Panel */}
           <Card className="!p-8 animate-fade-up opacity-0">
             <div className="flex items-center gap-3 mb-8">
-              <span className="text-2xl">🛡</span>
+              <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-brand" />
+              </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Risk Score Analysis</h3>
                 <p className="text-white/30 text-sm">5-signal composite monitored by Reactive Smart Contracts</p>
@@ -260,7 +265,9 @@ export function InvestorDashboard() {
           {/* Event Log */}
           <Card className="!p-8 animate-fade-up opacity-0">
             <div className="flex items-center gap-3 mb-8">
-              <span className="text-2xl">📜</span>
+              <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
+                <ScrollText className="w-5 h-5 text-brand" />
+              </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Event Log</h3>
                 <p className="text-white/30 text-sm">On-chain events for this position</p>
@@ -290,7 +297,7 @@ export function InvestorDashboard() {
           {/* Share Button */}
           <div className="text-center animate-fade-up opacity-0">
             <button className="btn-primary px-8 py-2.5" onClick={handleCopy}>
-              {copied ? '✓ Copied!' : '📋 Copy Verification Link'}
+              {copied ? <span className="inline-flex items-center gap-1.5"><Check className="w-4 h-4" /> Copied!</span> : <span className="inline-flex items-center gap-1.5"><Copy className="w-4 h-4" /> Copy Verification Link</span>}
             </button>
           </div>
         </div>
@@ -309,7 +316,7 @@ export function InvestorDashboard() {
       {!selectedAddress && (
         <Card className="!p-16 text-center animate-fade-up opacity-0">
           <div className="flex flex-col items-center gap-4">
-            <div className="text-5xl opacity-20">🔍</div>
+            <Search className="w-12 h-12 text-white/10" />
             <p className="text-white/30 text-lg">Enter a project address to begin verification</p>
             <p className="text-white/15 text-sm">Supports token address, pool address, or team wallet</p>
           </div>

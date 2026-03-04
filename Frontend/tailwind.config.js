@@ -95,6 +95,10 @@ export default {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-50%)' },
         },
+        marqueeScroll: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-33.333%)' },
+        },
         gridFade: {
           '0%, 100%': { opacity: '0.02' },
           '50%': { opacity: '0.04' },

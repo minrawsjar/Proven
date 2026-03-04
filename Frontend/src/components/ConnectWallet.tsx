@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useNetwork } from 'wagmi'
+import { Wallet, Copy, ExternalLink, LogOut } from 'lucide-react'
 
 export function ConnectWallet() {
   const { address, isConnected } = useAccount()
@@ -61,11 +62,7 @@ export function ConnectWallet() {
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-200"
                 >
                   <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                    {connector.name === 'MetaMask' ? (
-                      <span className="text-lg">🦊</span>
-                    ) : (
-                      <span className="text-lg">💼</span>
-                    )}
+                    <Wallet className="w-4 h-4 text-brand" />
                   </div>
                   <div>
                     <div className="font-semibold">{connector.name}</div>
@@ -137,7 +134,7 @@ export function ConnectWallet() {
               }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-all"
             >
-              <span>📋</span> Copy Address
+              <Copy className="w-4 h-4" /> Copy Address
             </button>
 
             <a
@@ -147,7 +144,7 @@ export function ConnectWallet() {
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-all"
               onClick={() => setShowDropdown(false)}
             >
-              <span>🔗</span> View on Explorer ↗
+              <ExternalLink className="w-4 h-4" /> View on Explorer
             </a>
 
             <button
@@ -157,7 +154,7 @@ export function ConnectWallet() {
               }}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-400/70 hover:text-red-400 hover:bg-red-500/5 transition-all"
             >
-              <span>⏏</span> Disconnect
+              <LogOut className="w-4 h-4" /> Disconnect
             </button>
           </div>
         </div>

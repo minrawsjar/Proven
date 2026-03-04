@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRSCMonitorStore, type RSCEvent as IncomingEvent, type RSCResponse } from '../store/rscMonitorStore'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
+import { Zap, Radio, Target, LockKeyhole, Search, Link2, BrainCircuit, BarChart3, Mail, RefreshCw, CheckCircle2, Lightbulb } from 'lucide-react'
 
 export function RSCActivityMonitor() {
   const {
@@ -66,13 +67,13 @@ export function RSCActivityMonitor() {
       {/* Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fade-up opacity-0">
         {[
-          { label: 'React() Calls', value: stats.totalReactCalls, color: 'brand', icon: '⚡' },
-          { label: 'Callbacks Dispatched', value: stats.totalCallbacksDispatched, color: 'brand', icon: '📡' },
-          { label: 'Milestones Unlocked', value: stats.totalMilestonesUnlocked, color: 'brand-light', icon: '🎯' },
-          { label: 'Lock Extensions', value: stats.totalLockExtensionsApplied, color: 'neon-orange', icon: '🔒' },
+          { label: 'React() Calls', value: stats.totalReactCalls, color: 'brand', Icon: Zap },
+          { label: 'Callbacks Dispatched', value: stats.totalCallbacksDispatched, color: 'brand', Icon: Radio },
+          { label: 'Milestones Unlocked', value: stats.totalMilestonesUnlocked, color: 'brand-light', Icon: Target },
+          { label: 'Lock Extensions', value: stats.totalLockExtensionsApplied, color: 'neon-orange', Icon: LockKeyhole },
         ].map((stat, i) => (
           <div key={i} className="glow-card !p-5 text-center">
-            <span className="text-lg">{stat.icon}</span>
+            <stat.Icon className={`w-5 h-5 text-${stat.color} mx-auto`} />
             <div className={`text-3xl font-black font-mono text-${stat.color} mt-2`}>{stat.value}</div>
             <p className="text-white/30 text-xs mt-1 uppercase tracking-wider">{stat.label}</p>
           </div>
@@ -82,7 +83,7 @@ export function RSCActivityMonitor() {
       {/* Filter Bar */}
       <div className="glass p-4 rounded-2xl mb-8 flex gap-4 items-center animate-fade-up opacity-0">
         <div className="relative flex-1">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 text-sm">🔍</span>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
           <input
             type="text"
             placeholder="Filter by project or signal..."
@@ -123,7 +124,7 @@ export function RSCActivityMonitor() {
           <div id="left-column" className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin">
             {incomingEvents.length === 0 ? (
               <div className="text-center py-16">
-                <div className="text-4xl opacity-20 mb-3">📡</div>
+                <Radio className="w-10 h-10 text-white/10 mx-auto mb-3" />
                 <p className="text-white/20">Waiting for events...</p>
               </div>
             ) : (
@@ -134,7 +135,7 @@ export function RSCActivityMonitor() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`chip ${event.chain === 'UNICHAIN_SEPOLIA' ? 'chip-cyan' : 'chip-purple'} !text-[10px]`}>
-                      {event.chain === 'UNICHAIN_SEPOLIA' ? '⛓ UNICHAIN' : '⛓ ETH'}
+                      {event.chain === 'UNICHAIN_SEPOLIA' ? <span className="inline-flex items-center gap-1"><Link2 className="w-3 h-3" /> UNICHAIN</span> : <span className="inline-flex items-center gap-1"><Link2 className="w-3 h-3" /> ETH</span>}
                     </span>
                     <span className="text-white/15 text-[10px] font-mono ml-auto">Block #{event.blockNumber}</span>
                   </div>
@@ -170,7 +171,7 @@ export function RSCActivityMonitor() {
           <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin">
             {rscResponses.length === 0 ? (
               <div className="text-center py-16">
-                <div className="text-4xl opacity-20 mb-3">🧠</div>
+                <BrainCircuit className="w-10 h-10 text-white/10 mx-auto mb-3" />
                 <p className="text-white/20">Waiting for RSC evaluations...</p>
               </div>
             ) : (
@@ -195,7 +196,7 @@ export function RSCActivityMonitor() {
                       </span>
                     </div>
                     <Badge variant={response.result === 'TRIGGERED' ? 'success' : 'neutral'}>
-                      {response.result === 'TRIGGERED' ? '⚡ TRIGGERED' : 'BELOW'}
+                      {response.result === 'TRIGGERED' ? <span className="inline-flex items-center gap-1"><Zap className="w-3 h-3" /> TRIGGERED</span> : 'BELOW'}
                     </Badge>
                   </div>
                   {response.result === 'TRIGGERED' && (
@@ -216,26 +217,26 @@ export function RSCActivityMonitor() {
       {/* Live Demo Guide */}
       <Card variant="glass" className="!p-6 mt-8 animate-fade-up opacity-0">
         <div className="flex items-center gap-3 mb-4">
-          <span className="text-xl">📊</span>
+          <BarChart3 className="w-5 h-5 text-brand" />
           <h3 className="font-bold text-white">How This Works</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {[
-            { step: '01', text: 'On-chain events arrive from Unichain Sepolia', icon: '📨' },
-            { step: '02', text: 'Kopli RSC evaluates each against 5 signals', icon: '🧠' },
-            { step: '03', text: 'Triggered signals dispatch callback transactions', icon: '⚡' },
-            { step: '04', text: 'Risk scores update, milestones unlock, or locks extend', icon: '🔄' },
-            { step: '05', text: 'All activity is verifiable on-chain in real time', icon: '✅' },
+            { step: '01', text: 'On-chain events arrive from Unichain Sepolia', Icon: Mail },
+            { step: '02', text: 'Kopli RSC evaluates each against 5 signals', Icon: BrainCircuit },
+            { step: '03', text: 'Triggered signals dispatch callback transactions', Icon: Zap },
+            { step: '04', text: 'Risk scores update, milestones unlock, or locks extend', Icon: RefreshCw },
+            { step: '05', text: 'All activity is verifiable on-chain in real time', Icon: CheckCircle2 },
           ].map((item) => (
             <div key={item.step} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 text-center">
-              <span className="text-2xl mb-2 block">{item.icon}</span>
+              <item.Icon className="w-6 h-6 text-brand/40 mx-auto mb-2" />
               <span className="text-brand/40 font-mono text-[10px] font-bold">{item.step}</span>
               <p className="text-white/40 text-xs mt-1 leading-relaxed">{item.text}</p>
             </div>
           ))}
         </div>
         <p className="text-white/20 text-xs mt-4 text-center font-mono">
-          💡 Events are simulated for demo. In production, these stream from Kopli RPC at reactive.network
+                    <Lightbulb className="w-3.5 h-3.5 text-brand/40 inline mr-1.5" />Events are simulated for demo. In production, these stream from Kopli RPC at reactive.network
         </p>
       </Card>
     </div>
