@@ -154,7 +154,7 @@ export function NetworkSphere({ className = '' }: { className?: string }) {
     <canvas
       ref={canvasRef}
       className={`w-full h-full ${className}`}
-      style={{ aspectRatio: '1' }}
+      style={{ aspectRatio: '1', filter: 'drop-shadow(0 0 40px rgba(0, 230, 118, 0.3))' }}
     />
   )
 }
