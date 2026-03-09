@@ -25,21 +25,28 @@ contract VestingHook is BaseHook {
     error LockExtensionActive(uint256 until);
     error ExceedsUnlockedAmount(uint256 requested, uint256 maxWithdrawable);
     error InvalidUnlockPct();
+    error OnlyRSC();
+    error InvalidMilestoneId();
 
     event PositionRegistered(address indexed team, address indexed tokenAddr, PoolId indexed poolId);
     event PositionLocked(address indexed team, PoolId indexed poolId, uint256 amount);
     event PoolMetricsUpdated(PoolId indexed poolId, uint256 tvl, uint256 cumulativeVol, uint256 uniqueUsers);
     event CrashDetected(PoolId indexed poolId, uint256 dropPct);
+    event MilestoneUnlocked(address indexed team, uint8 indexed milestoneId, uint8 newUnlockedPct);
+    event LockExtended(address indexed team, uint256 lockUntil);
+    event WithdrawalsPaused(address indexed team, uint256 pausedUntil);
 
     IVaultManager public immutable VAULT_MANAGER;
+
+    /// @notice Immutable RSC authorizer address — set at deploy, never changeable.
+    ///         Only this address (ProvenCallback / RSC proxy) can call authorizeUnlock/extendLock/pauseWithdrawals.
+    address public immutable RSC_AUTHORIZER;
 
     /// @dev positions[team] = vesting position (team == 0 means not registered)
     mapping(address => VestingPosition) public positions;
     /// @dev poolToTeam[poolId] = team that registered for this pool
     mapping(PoolId => address) public poolToTeam;
 
-    /// @dev Rage lock / alert: withdrawals revert until this timestamp. 0 = not active.
-    uint256 public lockExtendedUntil;
     /// @dev Unlocked percentage (0–100) per team for withdrawal gate.
     mapping(address => uint8) public unlockedPctByTeam;
 
@@ -53,8 +60,19 @@ contract VestingHook is BaseHook {
     /// @dev Last price (sqrtPriceX96^2 >> 192) for crash detection.
     mapping(PoolId => uint256) public lastPrice;
 
-    constructor(IPoolManager _manager, IVaultManager _vaultManager) BaseHook(_manager) {
+    /// @notice Only the immutable RSC authorizer can call this function.
+    modifier onlyRSC() {
+        if (msg.sender != RSC_AUTHORIZER) revert OnlyRSC();
+        _;
+    }
+
+    constructor(
+        IPoolManager _manager,
+        IVaultManager _vaultManager,
+        address _rscAuthorizer
+    ) BaseHook(_manager) {
         VAULT_MANAGER = _vaultManager;
+        RSC_AUTHORIZER = _rscAuthorizer;
     }
 
     /// @inheritdoc BaseHook
@@ -99,9 +117,14 @@ contract VestingHook is BaseHook {
         pos.team = msg.sender;
         pos.tokenAddr = tokenAddr;
         pos.lpAmount = 0;
-        pos.milestones[0] = milestones[0];
-        pos.milestones[1] = milestones[1];
-        pos.milestones[2] = milestones[2];
+        pos.registeredAt = block.timestamp;
+        pos.lockExtendedUntil = 0;
+        for (uint256 j; j < 3; j++) {
+            pos.milestones[j].conditionType = milestones[j].conditionType;
+            pos.milestones[j].threshold = milestones[j].threshold;
+            pos.milestones[j].unlockPct = milestones[j].unlockPct;
+            pos.milestones[j].complete = false;
+        }
         poolToTeam[poolId] = msg.sender;
 
         emit PositionRegistered(msg.sender, tokenAddr, poolId);
@@ -160,9 +183,10 @@ contract VestingHook is BaseHook {
             return this.beforeRemoveLiquidity.selector;
         }
 
-        // Check 2 — Rage lock / alert active: no withdrawals until lockExtendedUntil.
-        if (lockExtendedUntil != 0 && block.timestamp < lockExtendedUntil) {
-            revert LockExtensionActive(lockExtendedUntil);
+        // Check 2 — Rage lock / alert active: no withdrawals until per-team lockExtendedUntil.
+        uint256 teamLockUntil = positions[sender].lockExtendedUntil;
+        if (teamLockUntil != 0 && block.timestamp < teamLockUntil) {
+            revert LockExtensionActive(teamLockUntil);
         }
 
         // Check 3 — Within authorized unlock %?
@@ -176,15 +200,44 @@ contract VestingHook is BaseHook {
         return this.beforeRemoveLiquidity.selector;
     }
 
-    /// @notice Set rage lock end time (e.g. by alert/guardian). 0 = not active.
-    function setLockExtendedUntil(uint256 until) external {
-        lockExtendedUntil = until;
+    // ═══════════════════════════════════════════════════════════════════════
+    //                RSC CALLBACK TARGETS (onlyRSC — immutable authorizer)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @notice Called by RSC when a milestone is reached.
+    ///         Sets milestone.complete = true, increases unlockedPctByTeam.
+    /// @param team        The vesting team address
+    /// @param milestoneId Which milestone (0, 1, or 2)
+    function authorizeUnlock(address team, uint8 milestoneId) external onlyRSC {
+        if (milestoneId >= 3) revert InvalidMilestoneId();
+        VestingPosition storage pos = positions[team];
+        if (pos.milestones[milestoneId].complete) return; // idempotent
+
+        pos.milestones[milestoneId].complete = true;
+        unlockedPctByTeam[team] += pos.milestones[milestoneId].unlockPct;
+        if (unlockedPctByTeam[team] > 100) unlockedPctByTeam[team] = 100;
+
+        emit MilestoneUnlocked(team, milestoneId, unlockedPctByTeam[team]);
     }
 
-    /// @notice Set unlocked percentage (0–100) for a team (e.g. when milestones are reached).
-    function setUnlockedPctForTeam(address team, uint8 pct) external {
-        if (pct > 100) revert InvalidUnlockPct();
-        unlockedPctByTeam[team] = pct;
+    /// @notice RAGE LOCK — Called by RSC when risk score ≥ 75.
+    ///         Extends the team's lock by penaltyDays (typically 30 days).
+    /// @param team        The vesting team address
+    /// @param penaltyDays Number of days to extend the lock
+    function extendLock(address team, uint32 penaltyDays) external onlyRSC {
+        uint256 lockUntil = block.timestamp + (uint256(penaltyDays) * 1 days);
+        positions[team].lockExtendedUntil = lockUntil;
+        emit LockExtended(team, lockUntil);
+    }
+
+    /// @notice ALERT — Called by RSC when risk score 50–74.
+    ///         Pauses withdrawals for the specified number of hours (typically 48h).
+    /// @param team       The vesting team address
+    /// @param pauseHours Number of hours to pause withdrawals
+    function pauseWithdrawals(address team, uint32 pauseHours) external onlyRSC {
+        uint256 pausedUntil = block.timestamp + (uint256(pauseHours) * 1 hours);
+        positions[team].lockExtendedUntil = pausedUntil;
+        emit WithdrawalsPaused(team, pausedUntil);
     }
 
     // ---------- Hook Point 3: afterSwap — metrics tracking & price crash detection ----------

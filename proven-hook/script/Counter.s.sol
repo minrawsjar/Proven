@@ -11,7 +11,7 @@ contract CounterScript is Script {
     function run() public {
         vm.startBroadcast();
         MockVaultManager vault = new MockVaultManager();
-        new VestingHookTestHelper(IPoolManager(address(1)), IVaultManager(address(vault)));
+        new VestingHookTestHelper(IPoolManager(address(1)), IVaultManager(address(vault)), address(0));
         vm.stopBroadcast();
     }
 }

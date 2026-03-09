@@ -10,8 +10,9 @@ contract DeployScript is Script {
     function run() public {
         IPoolManager manager = IPoolManager(vm.envAddress("POOL_MANAGER"));
         IVaultManager vault = IVaultManager(vm.envAddress("VAULT_MANAGER"));
+        address rscAuthorizer = vm.envAddress("RSC_AUTHORIZER");
         vm.startBroadcast();
-        new VestingHook(manager, vault);
+        new VestingHook(manager, vault, rscAuthorizer);
         vm.stopBroadcast();
     }
 }
