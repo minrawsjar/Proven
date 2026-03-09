@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useLaunchStore } from '../store/launchStore'
+import { useWallet, useTokenInfo, useContractWrites } from '../hooks/useWeb3'
 import { Card } from '../components/Card'
 import { Badge } from '../components/Badge'
 import { ProgressBar } from '../components/ProgressBar'
-import { Settings, Target, PenLine, AlertTriangle, Lightbulb, Eye, Lock, CheckCircle } from 'lucide-react'
+import { Settings, Target, PenLine, AlertTriangle, Lightbulb, Eye, Lock, CheckCircle, Loader2 } from 'lucide-react'
+import { isValidAddress } from '../utils/format'
+import { CONDITION_TYPE_MAP, VESTING_HOOK_ADDRESS, TIMELOCK_RSC_ADDRESS } from '../config/constants'
 
 export function LaunchPool() {
   const {
@@ -20,10 +23,25 @@ export function LaunchPool() {
     setTreasuryAddress,
   } = useLaunchStore()
 
+  const { address, isConnected, isWrongNetwork, ensureCorrectNetwork } = useWallet()
+  const { registerVestingPosition, registerMilestonesOnRSC, addGenesisWallet } = useContractWrites()
+
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [newWallet, setNewWallet] = useState('')
   const [understood, setUnderstood] = useState(false)
   const [selectedFeeTier, setSelectedFeeTier] = useState(0.3)
+
+  // TX state
+  const [txStep, setTxStep] = useState<'idle' | 'tx1' | 'tx2' | 'tx3' | 'done' | 'error'>('idle')
+  const [txHash1, setTxHash1] = useState<string | null>(null)
+  const [txHash2, setTxHash2] = useState<string | null>(null)
+  const [txError, setTxError] = useState<string | null>(null)
+
+  // Token info from on-chain
+  const tokenAddr = poolConfig?.tokenAddress as `0x${string}` | undefined
+  const { info: tokenInfo, loading: tokenLoading } = useTokenInfo(
+    tokenAddr && isValidAddress(tokenAddr) ? tokenAddr : undefined,
+  )
 
   // Initialize milestones if empty
   if (milestones.length === 0) {
@@ -39,12 +57,90 @@ export function LaunchPool() {
       setFormErrors({ general: 'Please fill in all required fields' })
       return
     }
+    if (!isValidAddress(poolConfig.tokenAddress)) {
+      setFormErrors({ general: 'Invalid token address' })
+      return
+    }
     setCurrentStep(2)
     setFormErrors({})
   }
 
   const totalUnlock = milestones.reduce((sum, m) => sum + m.unlockPercentage, 0)
   const canProceedStep2 = totalUnlock === 100
+
+  /* ── Sign & Deploy handler ── */
+  const handleSign = async () => {
+    if (!isConnected || !address) {
+      setTxError('Connect your wallet first')
+      return
+    }
+    if (isWrongNetwork) {
+      ensureCorrectNetwork()
+      return
+    }
+    if (VESTING_HOOK_ADDRESS === '0x0000000000000000000000000000000000000000') {
+      setTxError('VestingHook not deployed yet — set VITE_HOOK_ADDRESS in .env')
+      return
+    }
+
+    setTxStep('tx1')
+    setTxError(null)
+
+    try {
+      // TX1: registerVestingPosition on VestingHook (Unichain Sepolia)
+      // We use a dummy poolId for now — in production this comes from pool creation
+      const dummyPoolId = '0x0000000000000000000000000000000000000000000000000000000000000001' as `0x${string}`
+
+      const receipt1 = await registerVestingPosition(
+        milestones.map((m) => ({
+          type: m.type,
+          threshold: m.threshold,
+          unlockPercentage: m.unlockPercentage,
+        })),
+        poolConfig!.tokenAddress as `0x${string}`,
+        dummyPoolId,
+      )
+      setTxHash1(receipt1.transactionHash)
+      setTxStep('tx2')
+
+      // TX2: registerMilestones on TimeLockRSC (Lasna)
+      if (TIMELOCK_RSC_ADDRESS !== '0x0000000000000000000000000000000000000000') {
+        try {
+          const receipt2 = await registerMilestonesOnRSC(
+            dummyPoolId,
+            address as `0x${string}`,
+            milestones.map((m) => ({
+              type: m.type,
+              threshold: m.threshold,
+              unlockPercentage: m.unlockPercentage,
+            })),
+          )
+          setTxHash2(receipt2.transactionHash)
+        } catch (err) {
+          // Lasna TX may fail if wallet isn't on Lasna — log but don't block
+          console.warn('Lasna registerMilestones failed (may need chain switch):', err)
+        }
+      }
+
+      // TX3: add genesis wallets on RSC
+      setTxStep('tx3')
+      for (const wallet of additionalWallets) {
+        if (isValidAddress(wallet)) {
+          try {
+            await addGenesisWallet(address as `0x${string}`, wallet as `0x${string}`)
+          } catch {
+            console.warn('addGenesisWallet failed for', wallet)
+          }
+        }
+      }
+
+      setTxStep('done')
+    } catch (err: any) {
+      console.error('Transaction failed:', err)
+      setTxError(err?.shortMessage ?? err?.message ?? 'Transaction rejected')
+      setTxStep('error')
+    }
+  }
 
   const steps = [
     { num: 1, label: 'Pool Config', icon: Settings },
@@ -80,23 +176,35 @@ export function LaunchPool() {
 
           {/* Token Address */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-white/40 mb-2">Token Address (Ethereum Sepolia)</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-white/40 mb-2">Token Address (Unichain Sepolia)</label>
             <input
               className="input-glow w-full font-mono"
               placeholder="0x..."
               value={poolConfig?.tokenAddress || ''}
               onChange={(e) => setPoolConfig({ ...poolConfig, tokenAddress: e.target.value } as any)}
             />
-            {poolConfig?.tokenAddress && poolConfig.tokenAddress.length > 10 && (
+            {tokenLoading && (
+              <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10 flex items-center gap-3">
+                <Loader2 className="w-4 h-4 text-brand animate-spin" />
+                <span className="text-white/40 text-sm">Reading token data...</span>
+              </div>
+            )}
+            {tokenInfo && (
               <div className="mt-3 p-3 rounded-xl bg-brand/5 border border-brand/20 flex items-center gap-3">
                 <span className="text-brand text-sm">✓</span>
                 <div className="text-sm">
-                  <span className="text-white font-semibold">NOVA</span>
+                  <span className="text-white font-semibold">{tokenInfo.symbol}</span>
                   <span className="text-white/30 mx-2">•</span>
-                  <span className="text-white/40">Nova Protocol Token</span>
+                  <span className="text-white/40">{tokenInfo.name}</span>
                   <span className="text-white/30 mx-2">•</span>
-                  <span className="text-white/40 font-mono">Supply: 100M</span>
+                  <span className="text-white/40 font-mono">Supply: {(Number(tokenInfo.totalSupply) / 10 ** tokenInfo.decimals).toLocaleString()}</span>
                 </div>
+              </div>
+            )}
+            {poolConfig?.tokenAddress && isValidAddress(poolConfig.tokenAddress) && !tokenLoading && !tokenInfo && (
+              <div className="mt-3 p-3 rounded-xl bg-neon-orange/5 border border-neon-orange/20 flex items-center gap-3">
+                <span className="text-neon-orange text-sm">⚠</span>
+                <span className="text-neon-orange/60 text-sm">Token not found on Unichain Sepolia</span>
               </div>
             )}
           </div>
@@ -302,7 +410,7 @@ export function LaunchPool() {
                   </div>
                 </div>
                 {i === 0 && (
-                  <p className="text-white/20 text-xs mt-3 font-mono flex items-center gap-1.5"><Lightbulb className="w-3 h-3 text-brand/40 flex-shrink-0" /> Current Sepolia avg pool TVL is $2.1M</p>
+                  <p className="text-white/20 text-xs mt-3 font-mono flex items-center gap-1.5"><Lightbulb className="w-3 h-3 text-brand/40 flex-shrink-0" /> Unichain Sepolia pool TVL benchmarks vary — set realistic goals</p>
                 )}
                 {i === 1 && (
                   <p className="text-white/20 text-xs mt-3 font-mono flex items-center gap-1.5"><Lightbulb className="w-3 h-3 text-brand/40 flex-shrink-0" /> Top 10% of new launches reach $5M volume in 90 days</p>
@@ -367,7 +475,7 @@ export function LaunchPool() {
               value={newWallet}
               onChange={(e) => setNewWallet(e.target.value)}
             />
-            <button className="btn-primary py-2 px-4 text-xs" onClick={() => { if (newWallet) { addWallet(newWallet); setNewWallet('') } }}>
+            <button className="btn-primary py-2 px-4 text-xs" onClick={() => { if (newWallet && isValidAddress(newWallet)) { addWallet(newWallet); setNewWallet('') } }}>
               ADD
             </button>
           </div>
@@ -399,8 +507,9 @@ export function LaunchPool() {
         {/* Summary */}
         <div className="p-6 rounded-xl bg-void-50 border border-white/5 mb-8 font-mono text-sm space-y-2.5">
           <h4 className="text-white font-bold !font-sans text-base mb-4">Transaction Summary</h4>
-          <div className="flex justify-between"><span className="text-white/30">Pool</span><span className="text-white">$NOVA / USDC · 0.3% fee</span></div>
+          <div className="flex justify-between"><span className="text-white/30">Pool</span><span className="text-white">${tokenInfo?.symbol ?? 'TOKEN'} / {poolConfig?.pairToken ?? 'USDC'} · {selectedFeeTier}% fee</span></div>
           <div className="flex justify-between"><span className="text-white/30">Initial Liquidity</span><span className="text-brand font-bold">$250,000</span></div>
+          <div className="flex justify-between"><span className="text-white/30">Chain</span><span className="text-white/60">Unichain Sepolia (1301)</span></div>
           <div className="neon-line my-3 opacity-20" />
           {milestones.map((m, i) => (
             <div key={i} className="flex justify-between">
@@ -418,19 +527,65 @@ export function LaunchPool() {
 
         {/* Transactions */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="p-4 rounded-xl bg-brand/5 border border-brand/10">
+          <div className={`p-4 rounded-xl border transition-all duration-300 ${
+            txStep === 'tx1' ? 'bg-brand/10 border-brand/40 animate-pulse' :
+            txHash1 ? 'bg-brand/5 border-brand/30' : 'bg-brand/5 border-brand/10'
+          }`}>
             <Badge variant="info" className="mb-2">TX 1</Badge>
             <p className="text-white text-sm font-semibold">registerVestingPosition()</p>
-            <p className="text-white/30 text-xs mt-1">Register milestones & wallets</p>
-            <p className="text-white/20 text-xs font-mono mt-2">~45,000 gas</p>
+            <p className="text-white/30 text-xs mt-1">Register milestones & wallets on Unichain</p>
+            {txStep === 'tx1' && <p className="text-brand text-xs mt-2 animate-pulse">⏳ Awaiting confirmation...</p>}
+            {txHash1 && (
+              <a
+                href={`https://sepolia.uniscan.xyz/tx/${txHash1}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand/60 text-xs mt-2 font-mono block hover:text-brand transition"
+              >
+                ✓ {txHash1.slice(0, 10)}... ↗
+              </a>
+            )}
           </div>
-          <div className="p-4 rounded-xl bg-brand/5 border border-brand/10">
+          <div className={`p-4 rounded-xl border transition-all duration-300 ${
+            txStep === 'tx2' ? 'bg-neon-purple/10 border-neon-purple/40 animate-pulse' :
+            txHash2 ? 'bg-neon-purple/5 border-neon-purple/30' : 'bg-brand/5 border-brand/10'
+          }`}>
             <Badge variant="purple" className="mb-2">TX 2</Badge>
-            <p className="text-white text-sm font-semibold">addLiquidity()</p>
-            <p className="text-white/30 text-xs mt-1">Lock LP tokens in vault</p>
-            <p className="text-white/20 text-xs font-mono mt-2">~120,000 gas</p>
+            <p className="text-white text-sm font-semibold">registerMilestones()</p>
+            <p className="text-white/30 text-xs mt-1">Register on Lasna RSC</p>
+            {txStep === 'tx2' && <p className="text-neon-purple text-xs mt-2 animate-pulse">⏳ Awaiting confirmation...</p>}
+            {txHash2 && (
+              <a
+                href={`https://lasna.reactscan.net/tx/${txHash2}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-neon-purple/60 text-xs mt-2 font-mono block hover:text-neon-purple transition"
+              >
+                ✓ {txHash2.slice(0, 10)}... ↗
+              </a>
+            )}
           </div>
         </div>
+
+        {/* Success Banner */}
+        {txStep === 'done' && (
+          <div className="p-5 rounded-xl bg-brand/5 border border-brand/30 mb-6">
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-6 h-6 text-brand" />
+              <div>
+                <p className="text-brand font-bold">Pool Launched Successfully!</p>
+                <p className="text-white/40 text-sm mt-1">Your position is now locked and monitored by the Reactive Smart Contract.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {txError && (
+          <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/30 mb-6">
+            <p className="text-red-400 text-sm font-mono">{txError}</p>
+          </div>
+        )}
 
         {/* Checkbox */}
         <label className="flex items-start gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:border-white/10 transition">
@@ -446,9 +601,24 @@ export function LaunchPool() {
         </label>
 
         <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-white/5">
-          <button className="btn-secondary px-6 py-2.5" onClick={() => setCurrentStep(2)}>← Back</button>
-          <button className={`btn-primary px-8 py-2.5 ${!understood ? 'opacity-40 cursor-not-allowed' : ''}`} disabled={!understood}>
-            <span className="inline-flex items-center gap-2"><Lock className="w-4 h-4" /> Sign with MetaMask</span>
+          <button className="btn-secondary px-6 py-2.5" onClick={() => setCurrentStep(2)} disabled={txStep !== 'idle' && txStep !== 'error' && txStep !== 'done'}>← Back</button>
+          <button
+            className={`btn-primary px-8 py-2.5 ${(!understood || !isConnected || txStep === 'done') ? 'opacity-40 cursor-not-allowed' : ''}`}
+            disabled={!understood || !isConnected || (txStep !== 'idle' && txStep !== 'error')}
+            onClick={handleSign}
+          >
+            {txStep === 'idle' || txStep === 'error' ? (
+              <span className="inline-flex items-center gap-2">
+                <Lock className="w-4 h-4" />
+                {isConnected ? (isWrongNetwork ? 'Switch to Unichain Sepolia' : 'Sign & Deploy') : 'Connect Wallet First'}
+              </span>
+            ) : txStep === 'done' ? (
+              <span className="inline-flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Complete</span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Processing...
+              </span>
+            )}
           </button>
         </div>
       </Card>

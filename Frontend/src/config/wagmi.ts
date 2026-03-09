@@ -6,32 +6,32 @@ import { type Chain } from 'wagmi'
 
 /* ═══ Custom Chains ═══ */
 
-export const ethSepolia: Chain = {
-  id: 11155111,
-  name: 'Ethereum Sepolia',
-  network: 'sepolia',
+export const unichainSepolia: Chain = {
+  id: 1301,
+  name: 'Unichain Sepolia',
+  network: 'unichain-sepolia',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.sepolia.org'] },
-    public: { http: ['https://rpc.sepolia.org'] },
+    default: { http: ['https://sepolia.unichain.org'] },
+    public: { http: ['https://sepolia.unichain.org'] },
   },
   blockExplorers: {
-    default: { name: 'Etherscan', url: 'https://sepolia.etherscan.io' },
+    default: { name: 'Uniscan', url: 'https://sepolia.uniscan.xyz' },
   },
   testnet: true,
 }
 
-export const kopliTestnet: Chain = {
-  id: 5318008,
-  name: 'Kopli Testnet',
-  network: 'kopli',
+export const lasnaTestnet: Chain = {
+  id: 5318007,
+  name: 'Lasna Testnet',
+  network: 'lasna',
   nativeCurrency: { name: 'REACT', symbol: 'REACT', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://kopli-rpc.reactive.network'] },
-    public: { http: ['https://kopli-rpc.reactive.network'] },
+    default: { http: ['https://lasna-rpc.rnk.dev'] },
+    public: { http: ['https://lasna-rpc.rnk.dev'] },
   },
   blockExplorers: {
-    default: { name: 'ReactScan', url: 'https://kopli.reactscan.net' },
+    default: { name: 'ReactScan', url: 'https://lasna.reactscan.net' },
   },
   testnet: true,
 }
@@ -39,7 +39,7 @@ export const kopliTestnet: Chain = {
 /* ═══ Configure chains & providers ═══ */
 
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [ethSepolia, kopliTestnet],
+  [unichainSepolia, lasnaTestnet],
   [publicProvider()]
 )
 

@@ -74,7 +74,7 @@ export function ConnectWallet() {
               ))}
             <div className="border-t border-white/5 mt-2 pt-2 px-2">
               <p className="text-white/20 text-[10px]">
-                Connecting to Ethereum Sepolia
+                Connecting to Unichain Sepolia
               </p>
             </div>
           </div>
@@ -138,7 +138,7 @@ export function ConnectWallet() {
             </button>
 
             <a
-              href={`${chain?.blockExplorers?.default?.url || 'https://sepolia.uniscan.xyz'}/address/${address}`}
+              href={`${chain?.blockExplorers?.default?.url ?? 'https://sepolia.uniscan.xyz'}/address/${address}`}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-all"

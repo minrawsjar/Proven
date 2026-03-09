@@ -1,0 +1,4 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+export function Input({ label, error, helperText, icon, className = '', ...props }) {
+    return (_jsxs("div", { className: "w-full", children: [label && (_jsx("label", { className: "block text-xs font-semibold uppercase tracking-wider text-white/40 mb-2", children: label })), _jsxs("div", { className: "relative", children: [icon && (_jsx("span", { className: "absolute left-4 top-1/2 -translate-y-1/2 text-white/30", children: icon })), _jsx("input", { className: `input-glow w-full ${icon ? 'pl-10' : ''} ${error ? '!border-red-500/50 focus:!border-red-500 focus:!shadow-[0_0_0_3px_rgba(239,68,68,0.1)]' : ''} ${className}`, ...props })] }), error && _jsx("p", { className: "text-red-400 text-xs mt-1.5 font-mono", children: error }), helperText && !error && _jsx("p", { className: "text-white/30 text-xs mt-1.5", children: helperText })] }));
+}

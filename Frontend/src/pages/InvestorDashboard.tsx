@@ -1,49 +1,74 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useVerifyStore } from '../store/verifyStore'
+import { usePositionData, useRiskScore, useTokenInfo, useHookEventPolling } from '../hooks/useWeb3'
 import { Card } from '../components/Card'
 import { ProgressBar } from '../components/ProgressBar'
 import { Badge } from '../components/Badge'
-import { Search, Siren, Target, ShieldCheck, ScrollText, Copy, Check } from 'lucide-react'
+import { Search, Siren, Target, ShieldCheck, ScrollText, Copy, Check, Loader2 } from 'lucide-react'
+import { isValidAddress, formatAddress } from '../utils/format'
+import { SIGNAL_LABELS, UNICHAIN_EXPLORER, VESTING_HOOK_ADDRESS } from '../config/constants'
 
 export function InvestorDashboard() {
-  const { address } = useParams()
-  const { selectedAddress, setSelectedAddress, poolData, setPoolData } = useVerifyStore()
-  const [searchInput, setSearchInput] = useState(address || '')
-  const [loading, setLoading] = useState(false)
+  const { address: routeAddress } = useParams()
+  const { selectedAddress, setSelectedAddress, poolData, setPoolData, events } = useVerifyStore()
+  const [searchInput, setSearchInput] = useState(routeAddress || '')
   const [copied, setCopied] = useState(false)
 
-  const handleSearch = async () => {
-    if (!searchInput) return
-    setLoading(true)
+  // Resolved team address to query
+  const queryAddr = selectedAddress || routeAddress
+
+  // On-chain hooks
+  const { data: position, loading: posLoading, error: posError } = usePositionData(queryAddr)
+  const { score: riskScore, tier: riskTier } = useRiskScore(queryAddr)
+  const tokenAddr = position?.tokenAddr as `0x${string}` | undefined
+  const { info: tokenInfo } = useTokenInfo(
+    tokenAddr && tokenAddr !== '0x0000000000000000000000000000000000000000' ? tokenAddr : undefined,
+  )
+  const { isPolling } = useHookEventPolling(queryAddr)
+
+  // When position data comes in, map it to the store shape
+  useEffect(() => {
+    if (!position || position.team === '0x0000000000000000000000000000000000000000') {
+      if (!posLoading && queryAddr) setPoolData(null)
+      return
+    }
+
+    const lockUntil = Number(position.lockExtendedUntil)
+    const now = Math.floor(Date.now() / 1000)
+
+    setPoolData({
+      projectName: tokenInfo?.name ?? 'Unknown Project',
+      tokenSymbol: tokenInfo?.symbol ?? '???',
+      tokenAddress: position.tokenAddr,
+      pairToken: 'USDC',
+      feeTier: 0.3,
+      totalLocked: Number(position.lpAmount),
+      currentUnlocked: Math.floor(Number(position.lpAmount) * position.unlockedPct / 100),
+      unlockPercentage: position.unlockedPct,
+      lockExtendedUntil: lockUntil > now ? new Date(lockUntil * 1000).toISOString().split('T')[0] : null,
+      riskScore,
+      milestones: [
+        { condition: 'Milestone 1', currentValue: 0, threshold: 1, unlockAmount: 0, isComplete: false },
+        { condition: 'Milestone 2', currentValue: 0, threshold: 1, unlockAmount: 0, isComplete: false },
+        { condition: 'Milestone 3', currentValue: 0, threshold: 1, unlockAmount: 0, isComplete: false },
+      ],
+      monitoredWallets: [position.team],
+      treasuryAddress: null,
+    })
+  }, [position, tokenInfo, riskScore, posLoading, queryAddr, setPoolData])
+
+  const handleSearch = () => {
+    if (!searchInput || !isValidAddress(searchInput)) return
     setSelectedAddress(searchInput)
-    setTimeout(() => {
-      setPoolData({
-        projectName: 'Nova Protocol',
-        tokenSymbol: 'NOVA',
-        tokenAddress: '0x123...',
-        pairToken: 'USDC',
-        feeTier: 0.3,
-        totalLocked: 250000,
-        currentUnlocked: 62500,
-        unlockPercentage: 25,
-        lockExtendedUntil: null,
-        riskScore: 0,
-        milestones: [
-          { condition: 'TVL reaches $1,000,000', currentValue: 743000, threshold: 1000000, unlockAmount: 62500, isComplete: false },
-          { condition: 'Trading Volume reaches $5,000,000', currentValue: 1200000, threshold: 5000000, unlockAmount: 125000, isComplete: false },
-          { condition: '5,000 Unique Users', currentValue: 2847, threshold: 5000, unlockAmount: 62500, isComplete: false },
-        ],
-        monitoredWallets: ['0xdeployer...', '0xteam1...', '0xteam2...'],
-        treasuryAddress: '0xtreasury...',
-      })
-      setLoading(false)
-    }, 500)
   }
 
   useEffect(() => {
-    if (address) { setSearchInput(address); handleSearch() }
-  }, [address])
+    if (routeAddress && isValidAddress(routeAddress)) {
+      setSearchInput(routeAddress)
+      setSelectedAddress(routeAddress)
+    }
+  }, [routeAddress, setSelectedAddress])
 
   const handleCopy = () => {
     const url = `${window.location.origin}/verify/${searchInput}`
@@ -53,7 +78,9 @@ export function InvestorDashboard() {
   }
 
   const riskColor = (score: number) =>
-    score === 0 ? 'brand' : score < 30 ? 'neon-yellow' : score < 60 ? 'neon-orange' : 'neon-red'
+    score < 25 ? 'brand' : score < 50 ? 'neon-yellow' : score < 75 ? 'neon-orange' : 'neon-red'
+
+  const loading = posLoading
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
@@ -61,14 +88,14 @@ export function InvestorDashboard() {
       <div className="mb-12 animate-fade-up opacity-0">
         <Badge variant="purple" pulse className="mb-4">INVESTOR DASHBOARD</Badge>
         <h1 className="text-3xl md:text-4xl font-black text-white mb-2">Verify a Project</h1>
-        <p className="text-white/30 mb-8">Paste a team address, pool, or token address</p>
+        <p className="text-white/30 mb-8">Paste a team address to check their vesting position</p>
 
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
             <input
               className="input-glow w-full !pl-12 font-mono"
-              placeholder="0x..."
+              placeholder="0x... (team wallet address)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -77,12 +104,16 @@ export function InvestorDashboard() {
           <button className="btn-primary px-8 py-3" onClick={handleSearch} disabled={loading}>
             {loading ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="60" strokeDashoffset="20" /></svg>
+                <Loader2 className="animate-spin h-4 w-4" />
                 Searching
               </span>
             ) : 'Search'}
           </button>
         </div>
+
+        {VESTING_HOOK_ADDRESS === '0x0000000000000000000000000000000000000000' && (
+          <p className="text-neon-orange/60 text-xs mt-3 font-mono">⚠ Hook not deployed — set VITE_HOOK_ADDRESS in .env</p>
+        )}
       </div>
 
       {poolData && (
@@ -96,10 +127,10 @@ export function InvestorDashboard() {
                 <div>
                   <h3 className="font-black text-red-400 text-lg mb-1">RAGE LOCK ACTIVE</h3>
                   <p className="text-red-200/60 text-sm mb-1">
-                    Lock extended until <span className="text-red-300 font-mono">{poolData.lockExtendedUntil}</span> (12 days remaining)
+                    Lock extended until <span className="text-red-300 font-mono">{poolData.lockExtendedUntil}</span>
                   </p>
                   <p className="text-red-200/40 text-sm">
-                    Reason: Deployer wallet transferred 23% of holdings. Tx: <span className="text-red-300/60 font-mono">0x4a3b...</span>
+                    The Reactive Smart Contract triggered a lock extension due to elevated risk signals.
                   </p>
                 </div>
               </div>
@@ -124,15 +155,15 @@ export function InvestorDashboard() {
             {/* 2x2 Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               {[
-                { label: 'Total LP Locked', value: `$${(poolData.totalLocked / 1000).toFixed(0)}k`, color: 'text-white', sub: 'Verify on-chain ↗' },
-                { label: 'Currently Unlocked', value: `${poolData.unlockPercentage}%`, color: 'text-brand', sub: `$${(poolData.currentUnlocked / 1000).toFixed(0)}k released` },
-                { label: 'Lock Extended', value: poolData.lockExtendedUntil || 'Never', color: 'text-white', sub: 'No extensions triggered' },
+                { label: 'Total LP Locked', value: poolData.totalLocked > 0 ? poolData.totalLocked.toLocaleString() : '0', color: 'text-white', sub: <a href={`${UNICHAIN_EXPLORER}/address/${VESTING_HOOK_ADDRESS}`} target="_blank" rel="noopener noreferrer" className="text-brand/60 hover:text-brand transition">Verify on-chain ↗</a> },
+                { label: 'Currently Unlocked', value: `${poolData.unlockPercentage}%`, color: 'text-brand', sub: `${poolData.currentUnlocked.toLocaleString()} released` },
+                { label: 'Lock Extended', value: poolData.lockExtendedUntil || 'Never', color: 'text-white', sub: poolData.lockExtendedUntil ? 'RSC-triggered extension' : 'No extensions triggered' },
                 { label: 'Risk Score', value: `${poolData.riskScore}/100`, color: `text-${riskColor(poolData.riskScore)}`, sub: poolData.riskScore === 0 ? 'All signals clear' : 'Active signals detected' },
               ].map((stat, i) => (
                 <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-white/30 mb-2">{stat.label}</p>
                   <p className={`text-2xl font-black font-mono ${stat.color}`}>{stat.value}</p>
-                  <p className="text-white/20 text-xs mt-1">{stat.sub}</p>
+                  <div className="text-white/20 text-xs mt-1">{stat.sub}</div>
                 </div>
               ))}
             </div>
@@ -140,45 +171,6 @@ export function InvestorDashboard() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-white/30 mb-3">Overall Unlock Progress</p>
               <ProgressBar value={poolData.unlockPercentage} color="gradient" size="lg" showLabel />
-            </div>
-          </Card>
-
-          {/* Milestone Tracker */}
-          <Card className="!p-8 animate-fade-up opacity-0">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-10 h-10 rounded-xl bg-brand/10 flex items-center justify-center">
-                <Target className="w-5 h-5 text-brand" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Milestone Tracker</h3>
-                <p className="text-white/30 text-sm">On-chain conditions monitored by Reactive SC</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {poolData.milestones.map((m, i) => {
-                const pct = Math.min((m.currentValue / m.threshold) * 100, 100)
-                const colors: ('cyan' | 'purple' | 'green')[] = ['cyan', 'purple', 'green']
-                return (
-                  <div key={i} className="p-5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all duration-300">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <p className="text-white font-bold">{m.condition}</p>
-                        <p className="text-white/30 text-sm font-mono mt-1">
-                          {m.currentValue.toLocaleString()} / {m.threshold.toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge variant={m.isComplete ? 'success' : 'info'}>
-                        {m.isComplete ? <span className="inline-flex items-center gap-1"><Check className="w-3 h-3" /> Complete</span> : `${pct.toFixed(0)}%`}
-                      </Badge>
-                    </div>
-                    <ProgressBar value={pct} color={colors[i]} size="md" />
-                    <p className="text-white/20 text-xs mt-3 font-mono">
-                      Unlocks {Math.round((m.unlockAmount / poolData.totalLocked) * 100)}% → ${(m.unlockAmount / 1000).toFixed(0)}k
-                    </p>
-                  </div>
-                )
-              })}
             </div>
           </Card>
 
@@ -190,7 +182,7 @@ export function InvestorDashboard() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Risk Score Analysis</h3>
-                <p className="text-white/30 text-sm">5-signal composite monitored by Reactive Smart Contracts</p>
+                <p className="text-white/30 text-sm">5-signal composite monitored by Reactive Smart Contracts on Lasna</p>
               </div>
             </div>
 
@@ -211,9 +203,9 @@ export function InvestorDashboard() {
                 </div>
                 <div
                   className={`h-full rounded-full relative z-10 transition-all duration-1000 ${
-                    poolData.riskScore === 0 ? 'bg-brand shadow-[0_0_12px_rgba(0,230,118,0.5)]' :
-                    poolData.riskScore < 30 ? 'bg-neon-yellow shadow-[0_0_12px_rgba(234,179,8,0.5)]' :
-                    poolData.riskScore < 60 ? 'bg-neon-orange shadow-[0_0_12px_rgba(249,115,22,0.5)]' :
+                    poolData.riskScore < 25 ? 'bg-brand shadow-[0_0_12px_rgba(0,230,118,0.5)]' :
+                    poolData.riskScore < 50 ? 'bg-neon-yellow shadow-[0_0_12px_rgba(234,179,8,0.5)]' :
+                    poolData.riskScore < 75 ? 'bg-neon-orange shadow-[0_0_12px_rgba(249,115,22,0.5)]' :
                     'bg-neon-red shadow-[0_0_12px_rgba(239,68,68,0.5)]'
                   }`}
                   style={{ width: `${Math.max(poolData.riskScore, 2)}%` }}
@@ -226,39 +218,34 @@ export function InvestorDashboard() {
 
             {/* Signal Rows */}
             <div className="space-y-2">
-              {[
-                { signal: 'S1', label: 'Large Holder Outflow', status: 'Inactive', points: 0, active: false },
-                { signal: 'S2', label: 'Treasury Drain', status: 'Inactive', points: 0, active: false },
-                { signal: 'S3', label: 'LP Withdrawal Attempt', status: 'Inactive', points: 0, active: false },
-                { signal: 'S4', label: 'Liquidity Concentration', status: 'Active', points: 10, active: true },
-                { signal: 'S5', label: 'Holder Dispersion', status: 'Inactive', points: 0, active: false },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className={`p-4 rounded-xl flex items-center justify-between text-sm transition-all duration-300 ${
-                    item.active
-                      ? 'bg-neon-orange/5 border border-neon-orange/20'
-                      : 'bg-white/[0.02] border border-white/5 opacity-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`font-mono text-xs font-bold ${item.active ? 'text-neon-orange' : 'text-white/20'}`}>
-                      {item.signal}
-                    </span>
-                    <span className={item.active ? 'text-white' : 'text-white/30'}>{item.label}</span>
+              {[0, 1, 2, 3, 4].map((signalId) => {
+                const label = SIGNAL_LABELS[signalId]
+                // In future, read actual signal states from RSC; for now show all as monitoring
+                const isActive = false
+                return (
+                  <div
+                    key={signalId}
+                    className={`p-4 rounded-xl flex items-center justify-between text-sm transition-all duration-300 ${
+                      isActive
+                        ? 'bg-neon-orange/5 border border-neon-orange/20'
+                        : 'bg-white/[0.02] border border-white/5 opacity-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`font-mono text-xs font-bold ${isActive ? 'text-neon-orange' : 'text-white/20'}`}>
+                        S{signalId + 1}
+                      </span>
+                      <span className={isActive ? 'text-white' : 'text-white/30'}>{label}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-white/20 text-xs">{isActive ? 'Active' : 'Monitoring'}</span>
+                      <span className={`font-mono text-xs ${isActive ? 'text-neon-orange' : 'text-white/15'}`}>
+                        {isActive ? '+pts' : '0 pts'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    {item.active ? (
-                      <span className="chip chip-orange">{item.status}</span>
-                    ) : (
-                      <span className="text-white/20 text-xs">{item.status}</span>
-                    )}
-                    <span className={`font-mono text-xs ${item.active ? 'text-neon-orange' : 'text-white/15'}`}>
-                      +{item.points} pts
-                    </span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
 
@@ -270,27 +257,46 @@ export function InvestorDashboard() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-white">Event Log</h3>
-                <p className="text-white/30 text-sm">On-chain events for this position</p>
+                <p className="text-white/30 text-sm">
+                  On-chain events for this position
+                  {isPolling && <span className="ml-2 text-brand text-xs">● Live</span>}
+                </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {[
-                { timestamp: '2026-03-04 14:32', type: 'PositionLocked', desc: '250,000 USDC worth of LP locked in vault', tx: '0x7f2a...', variant: 'info' as const },
-                { timestamp: '2026-03-04 14:25', type: 'RiskElevated', desc: 'Risk score reached 10. Liquidity concentration detected.', tx: '0x6e1b...', variant: 'warning' as const },
-                { timestamp: '2026-03-04 12:10', type: 'MilestonesSet', desc: '3 milestones registered with Reactive SC', tx: '0x3c9d...', variant: 'purple' as const },
-              ].map((event, i) => (
-                <div key={i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <Badge variant={event.variant}>{event.type}</Badge>
-                      <span className="text-white/20 text-xs font-mono">{event.timestamp}</span>
-                    </div>
-                    <span className="text-brand/40 text-xs font-mono hover:text-brand cursor-pointer transition">{event.tx} ↗</span>
-                  </div>
-                  <p className="text-white/50 text-sm">{event.desc}</p>
+              {events.length === 0 ? (
+                <div className="text-center py-8">
+                  <ScrollText className="w-8 h-8 text-white/10 mx-auto mb-2" />
+                  <p className="text-white/20 text-sm">No events found yet — events will appear after the first on-chain interaction</p>
                 </div>
-              ))}
+              ) : (
+                events.slice(0, 20).map((event, i) => (
+                  <div key={event.id || i} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-white/10 transition-all">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <Badge variant={
+                          event.eventType === 'MilestoneUnlocked' ? 'success' :
+                          event.eventType === 'LockExtended' ? 'error' :
+                          event.eventType === 'RiskElevated' ? 'warning' : 'info'
+                        }>
+                          {event.eventType}
+                        </Badge>
+                        <span className="text-white/20 text-xs font-mono">Block #{event.blockNumber}</span>
+                      </div>
+                      <a
+                        href={`${UNICHAIN_EXPLORER}/tx/${event.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-brand/40 text-xs font-mono hover:text-brand cursor-pointer transition"
+                      >
+                        {event.txHash.slice(0, 10)}... ↗
+                      </a>
+                    </div>
+                    <p className="text-white/50 text-sm">{event.description}</p>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
 
@@ -303,22 +309,34 @@ export function InvestorDashboard() {
         </div>
       )}
 
-      {/* Empty States */}
-      {selectedAddress && !poolData && (
+      {/* Loading State */}
+      {loading && queryAddr && (
         <Card className="!p-12 text-center animate-fade-up opacity-0">
           <div className="flex flex-col items-center gap-4">
-            <svg className="animate-spin h-8 w-8 text-brand" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" strokeDasharray="60" strokeDashoffset="20" /></svg>
-            <p className="text-white/30">Loading project data...</p>
+            <Loader2 className="animate-spin h-8 w-8 text-brand" />
+            <p className="text-white/30">Reading on-chain data from Unichain Sepolia...</p>
           </div>
         </Card>
       )}
 
-      {!selectedAddress && (
+      {/* Not Found */}
+      {!loading && queryAddr && !poolData && posError && (
+        <Card className="!p-12 text-center animate-fade-up opacity-0">
+          <div className="flex flex-col items-center gap-4">
+            <Search className="w-12 h-12 text-white/10" />
+            <p className="text-white/30 text-lg">No position found for this address</p>
+            <p className="text-white/15 text-sm font-mono">{posError}</p>
+          </div>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {!queryAddr && (
         <Card className="!p-16 text-center animate-fade-up opacity-0">
           <div className="flex flex-col items-center gap-4">
             <Search className="w-12 h-12 text-white/10" />
-            <p className="text-white/30 text-lg">Enter a project address to begin verification</p>
-            <p className="text-white/15 text-sm">Supports token address, pool address, or team wallet</p>
+            <p className="text-white/30 text-lg">Enter a team address to begin verification</p>
+            <p className="text-white/15 text-sm">Paste the team wallet address that registered the vesting position</p>
           </div>
         </Card>
       )}
