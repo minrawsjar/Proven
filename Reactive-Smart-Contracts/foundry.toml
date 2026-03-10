@@ -2,5 +2,16 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+solc_version = "0.8.26"
+evm_version = "cancun"
+
+remappings = [
+    "reactive-lib/=lib/reactive-lib/src/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+[rpc_endpoints]
+unichain_sepolia = "https://sepolia.unichain.org"
+lasna = "https://lasna-rpc.rnk.dev"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
