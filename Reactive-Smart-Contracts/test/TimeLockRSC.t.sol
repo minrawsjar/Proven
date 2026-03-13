@@ -298,21 +298,21 @@ contract TimeLockRSCTest is Test {
     // ──────────────────────────────────────────────────────────────
 
     function test_callback_authorizeUnlock() public {
-        callback.authorizeUnlock(TEAM, 1);
+        callback.authorizeUnlock(address(0), TEAM, 1);
 
         assertEq(hook.lastUnlockTeam(), TEAM);
         assertEq(hook.lastUnlockMilestoneId(), 1);
     }
 
     function test_callback_extendLock() public {
-        callback.extendLock(TEAM, 30);
+        callback.extendLock(address(0), TEAM, 30);
 
         assertEq(hook.lastExtendTeam(), TEAM);
         assertEq(hook.lastExtendPenaltyDays(), 30);
     }
 
     function test_callback_pauseWithdrawals() public {
-        callback.pauseWithdrawals(TEAM, 48);
+        callback.pauseWithdrawals(address(0), TEAM, 48);
 
         assertEq(hook.lastPauseTeam(), TEAM);
         assertEq(hook.lastPauseHours(), 48);
@@ -321,19 +321,19 @@ contract TimeLockRSCTest is Test {
     function test_callback_rejectsUnauthorized() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert("Authorized sender only");
-        callback.authorizeUnlock(TEAM, 0);
+        callback.authorizeUnlock(address(0), TEAM, 0);
     }
 
     function test_callback_rejectsUnauthorized_extendLock() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert("Authorized sender only");
-        callback.extendLock(TEAM, 30);
+        callback.extendLock(address(0), TEAM, 30);
     }
 
     function test_callback_rejectsUnauthorized_pauseWithdrawals() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert("Authorized sender only");
-        callback.pauseWithdrawals(TEAM, 48);
+        callback.pauseWithdrawals(address(0), TEAM, 48);
     }
 
     // ──────────────────────────────────────────────────────────────

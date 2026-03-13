@@ -76,6 +76,7 @@ contract ProvenCallback is AbstractCallback {
      * @param milestoneId Which milestone (0, 1, or 2)
      */
     function authorizeUnlock(
+        address,         // rvm_id — injected by Reactive Network, not used
         address team,
         uint8   milestoneId
     ) external authorizedSenderOnly {
@@ -90,6 +91,7 @@ contract ProvenCallback is AbstractCallback {
      * @param penaltyDays Number of days to extend the lock (typically 30)
      */
     function extendLock(
+        address,         // rvm_id — injected by Reactive Network, not used
         address team,
         uint32  penaltyDays
     ) external authorizedSenderOnly {
@@ -104,6 +106,7 @@ contract ProvenCallback is AbstractCallback {
      * @param pauseHours Number of hours to pause withdrawals (typically 48)
      */
     function pauseWithdrawals(
+        address,         // rvm_id — injected by Reactive Network, not used
         address team,
         uint32  pauseHours
     ) external authorizedSenderOnly {

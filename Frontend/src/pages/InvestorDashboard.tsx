@@ -4,7 +4,7 @@ import { useVerifyStore } from '../store/verifyStore'
 import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling } from '../hooks/useWeb3'
 import { isValidAddress, formatAddress } from '../utils/format'
 import { SIGNAL_LABELS, UNICHAIN_EXPLORER } from '../config/constants'
-import { Search, Shield, Activity, AlertTriangle, Clock, Unlock, Lock, ChevronRight, ExternalLink, Rocket, Wallet, Eye } from 'lucide-react'
+import { Search, Shield, Activity, AlertTriangle, Clock, Unlock, Lock, ChevronRight, ExternalLink, Rocket, Wallet, Eye, BarChart3 } from 'lucide-react'
 
 export function InvestorDashboard() {
   const { address: routeAddress } = useParams<{ address: string }>()
@@ -91,6 +91,17 @@ export function InvestorDashboard() {
 
   const riskInfo = getRiskColor(riskScore)
   const myRiskInfo = getRiskColor(myRiskScore)
+  const riskTierLabel = riskTier === 0 ? 'SAFE' : riskTier === 1 ? 'WATCH' : riskTier === 2 ? 'ALERT' : 'RAGE'
+  const poolStatus = !positionData
+    ? 'No pool loaded'
+    : positionData.team === '0x0000000000000000000000000000000000000000'
+      ? 'No position found'
+      : positionData.lockExtendedUntil > 0n
+        ? 'Lock extension active'
+        : 'Monitoring normally'
+  const lockUntilText = positionData?.lockExtendedUntil && positionData.lockExtendedUntil > 0n
+    ? new Date(Number(positionData.lockExtendedUntil) * 1000).toLocaleString()
+    : 'No extension'
 
   const formatLp = (amt: bigint) => {
     if (amt === 0n) return '0'
@@ -105,12 +116,17 @@ export function InvestorDashboard() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0A] text-black dark:text-white">
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         {/* Header */}
-        <div className="text-center mb-10">
-          <span className="inline-block bg-black text-[#DFFF00] font-black uppercase text-xs px-4 py-1 border-2 border-black mb-4">DASHBOARD</span>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Your Pools</h1>
-          <p className="font-mono text-gray-600 dark:text-gray-400 mt-2">View your launched pools &amp; search any team address</p>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+          <div>
+            <span className="inline-block bg-black text-[#DFFF00] font-black uppercase text-xs px-4 py-1 border-2 border-black mb-3">Investor Dashboard</span>
+            <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter">Pool Control Center</h1>
+            <p className="font-mono text-sm text-gray-600 dark:text-gray-400 mt-1">Track one team at a time: status, risk, unlocks, and live events.</p>
+          </div>
+          <div className="border-4 border-black dark:border-white px-4 py-2 bg-[#DFFF00] text-black font-mono text-xs">
+            Comic UI • Real on-chain data
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════
@@ -199,7 +215,7 @@ export function InvestorDashboard() {
         )}
 
         {/* Search Bar */}
-        <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,1)] p-6 mb-10">
+        <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,1)] p-6 mb-8">
           <label className="block font-bold uppercase tracking-wider text-sm mb-2">Search Any Address</label>
           <div className="flex gap-3">
             <input
@@ -246,7 +262,32 @@ export function InvestorDashboard() {
 
         {/* Position Data */}
         {positionData && !posLoading && (
-          <div className="space-y-8">
+          <div className="space-y-6">
+
+            {/* Top KPI Row */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="border-4 border-black dark:border-white p-4 bg-[#DFFF00] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <p className="text-[10px] uppercase font-bold opacity-70">Risk Score</p>
+                <p className="font-black text-3xl leading-none mt-1">{riskScore}</p>
+                <p className="font-mono text-[10px] mt-1">Tier: {riskTierLabel}</p>
+              </div>
+              <div className="border-4 border-black dark:border-white p-4 bg-white dark:bg-[#111] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400">Unlocked</p>
+                <p className="font-black text-3xl leading-none mt-1">{positionData.unlockedPct}%</p>
+                <p className="font-mono text-[10px] mt-1 text-gray-500 dark:text-gray-400">Current vesting released</p>
+              </div>
+              <div className="border-4 border-black dark:border-white p-4 bg-white dark:bg-[#111] shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)]">
+                <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400">LP Locked</p>
+                <p className="font-black text-2xl leading-none mt-1 font-mono">{formatLp(positionData.lpAmount)}</p>
+                <p className="font-mono text-[10px] mt-1 text-gray-500 dark:text-gray-400">Raw on-chain LP amount</p>
+              </div>
+              <div className={`border-4 border-black dark:border-white p-4 ${positionData.lockExtendedUntil > 0n ? 'bg-[#FF3333] text-white' : 'bg-black text-[#DFFF00] dark:bg-white dark:text-black'} shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]`}>
+                <p className="text-[10px] uppercase font-bold opacity-70">Pool Status</p>
+                <p className="font-black text-base leading-tight mt-1">{poolStatus}</p>
+                <p className="font-mono text-[10px] mt-1 opacity-80">{lockUntilText}</p>
+              </div>
+            </div>
+
             {/* Viewing own pool badge */}
             {isViewingSelf && (
               <div className="flex items-center gap-2 px-4 py-2 bg-[#DFFF00] border-4 border-black">
@@ -256,140 +297,143 @@ export function InvestorDashboard() {
               </div>
             )}
 
-            {/* Top Row: Position + Risk */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Position Card */}
-              <div className="md:col-span-2 bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] p-6">
-                <h3 className="font-black uppercase text-lg border-b-4 border-black dark:border-white pb-3 mb-5 flex items-center gap-2">
-                  <Lock className="w-5 h-5" /> Position Data
-                </h3>
-                <div className="space-y-4 font-mono text-sm">
-                  <div className="flex justify-between items-center border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">Team</span>
-                    <span className="font-bold">{formatAddress(positionData.team)}</span>
+            {/* Main dashboard grid */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+              {/* Left rail */}
+              <div className="xl:col-span-3 space-y-6">
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-sm mb-4 border-b-4 border-black dark:border-white pb-2">Project</h3>
+                  <div className="space-y-3 font-mono text-xs">
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">Team</p>
+                      <p className="font-black">{formatAddress(positionData.team)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">Token</p>
+                      <p className="font-black">{tokenInfo?.name ?? 'Unknown'} ({tokenInfo?.symbol ?? '—'})</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 dark:text-gray-400">Registered</p>
+                      <p className="font-black">{positionData.registeredAt > 0n ? new Date(Number(positionData.registeredAt) * 1000).toLocaleDateString() : '—'}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">Token</span>
-                    <span className="font-bold">{tokenInfo?.symbol ?? formatAddress(positionData.tokenAddr)}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">LP Locked</span>
-                    <span className="font-black text-lg">{positionData.lpAmount.toString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">Registered</span>
-                    <span>{positionData.registeredAt > 0n ? new Date(Number(positionData.registeredAt) * 1000).toLocaleDateString() : '—'}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-                    <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">Lock Extended Until</span>
-                    <span className={positionData.lockExtendedUntil > 0n ? 'text-[#FF3333] font-bold' : ''}>
-                      {positionData.lockExtendedUntil > 0n ? new Date(Number(positionData.lockExtendedUntil) * 1000).toLocaleDateString() : 'No extension'}
-                    </span>
-                  </div>
+                </div>
 
-                  {/* Unlock Bar */}
-                  <div className="pt-2">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-gray-500 dark:text-gray-400 uppercase text-xs font-bold font-sans">Unlocked</span>
-                      <span className="font-black text-lg">{positionData.unlockedPct}%</span>
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-sm mb-4 border-b-4 border-black dark:border-white pb-2">Risk Gauge</h3>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-24 h-24 border-4 border-black dark:border-white ${riskInfo.bg} ${riskInfo.text} flex flex-col items-center justify-center`}>
+                      <span className="font-black text-3xl leading-none">{riskScore}</span>
+                      <span className="font-bold text-[10px]">/100</span>
                     </div>
-                    <div className="h-8 border-4 border-black dark:border-white bg-gray-200 dark:bg-[#1A1A1A] overflow-hidden">
-                      <div
-                        className="h-full bg-[#DFFF00] transition-all duration-700"
-                        style={{ width: `${positionData.unlockedPct}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs mt-1 text-gray-400">
-                      <span>0%</span>
-                      <span>100%</span>
+                    <div>
+                      <p className="font-black uppercase text-sm">{riskInfo.label}</p>
+                      <p className="font-mono text-xs text-gray-500 dark:text-gray-400">Dispatch tier: {riskTierLabel}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Risk Score Card */}
-              <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] p-6 flex flex-col">
-                <h3 className="font-black uppercase text-lg border-b-4 border-black dark:border-white pb-3 mb-5 flex items-center gap-2">
-                  <Shield className="w-5 h-5" /> RSC Score
-                </h3>
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <div className={`w-32 h-32 border-4 border-black dark:border-white ${riskInfo.bg} ${riskInfo.text} flex flex-col items-center justify-center`}>
-                    <span className="font-black text-4xl">{riskScore}</span>
-                    <span className="text-xs font-bold uppercase">/100</span>
+              {/* Center */}
+              <div className="xl:col-span-6 space-y-6">
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-lg mb-4 border-b-4 border-black dark:border-white pb-2 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5" /> Vesting Progress
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-xs font-mono mb-1">
+                        <span>Unlocked</span>
+                        <span className="font-black">{positionData.unlockedPct}%</span>
+                      </div>
+                      <div className="h-7 border-4 border-black dark:border-white bg-gray-100 dark:bg-[#1A1A1A] overflow-hidden">
+                        <div className="h-full bg-[#DFFF00]" style={{ width: `${positionData.unlockedPct}%` }} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[30, 70, 100].map((m, i) => {
+                        const done = positionData.unlockedPct >= m
+                        return (
+                          <div key={m} className={`border-4 border-black dark:border-white p-3 ${done ? 'bg-[#DFFF00] text-black' : 'bg-white dark:bg-[#0A0A0A]'}`}>
+                            <p className="text-[10px] font-bold uppercase">Milestone {i + 1}</p>
+                            <p className="font-black text-lg">{m}%</p>
+                            <p className="font-mono text-[10px]">{done ? 'Completed' : 'Pending'}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className={`mt-4 px-4 py-1 border-4 border-black dark:border-white font-black uppercase text-sm ${riskInfo.bg} ${riskInfo.text}`}>
-                    {riskInfo.label}
+                </div>
+
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-lg mb-4 border-b-4 border-black dark:border-white pb-2 flex items-center gap-2">
+                    <Activity className="w-5 h-5" /> Signal Watchlist
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full font-mono text-xs border-separate border-spacing-y-2">
+                      <thead>
+                        <tr>
+                          <th className="text-left uppercase text-[10px] text-gray-500 dark:text-gray-400">Signal</th>
+                          <th className="text-left uppercase text-[10px] text-gray-500 dark:text-gray-400">Condition</th>
+                          <th className="text-left uppercase text-[10px] text-gray-500 dark:text-gray-400">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {signals.map((sig) => (
+                          <tr key={sig.id} className="bg-gray-50 dark:bg-[#0A0A0A]">
+                            <td className="border-2 border-black dark:border-white px-3 py-2 font-black">{sig.id}</td>
+                            <td className="border-2 border-black dark:border-white px-3 py-2">{sig.label}</td>
+                            <td className="border-2 border-black dark:border-white px-3 py-2">
+                              <span className="px-2 py-1 border-2 border-black dark:border-white bg-white dark:bg-[#111] font-bold uppercase text-[10px]">Monitoring</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  {riskTier > 0 && (
-                    <p className="mt-3 font-mono text-xs text-gray-500 dark:text-gray-400">
-                      Dispatched Tier: <span className="font-black">{riskTier}</span>
-                    </p>
+                </div>
+              </div>
+
+              {/* Right */}
+              <div className="xl:col-span-3 space-y-6">
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-sm mb-4 border-b-4 border-black dark:border-white pb-2 flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Quick Facts
+                  </h3>
+                  <div className="space-y-3 font-mono text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Risk Tier</span><span className="font-black">{riskTierLabel}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Unlock %</span><span className="font-black">{positionData.unlockedPct}%</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Lock State</span><span className="font-black">{positionData.lockExtendedUntil > 0n ? 'Extended' : 'Normal'}</span></div>
+                  </div>
+                </div>
+
+                {/* Event Log */}
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-sm mb-4 border-b-4 border-black dark:border-white pb-2 flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Live Event Feed
+                  </h3>
+                  {events.length === 0 ? (
+                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">No events yet. Waiting for chain activity.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                      {events.map((evt) => (
+                        <div key={evt.id} className="border-2 border-black dark:border-white p-2 bg-gray-50 dark:bg-[#0A0A0A]">
+                          <p className="font-black text-[10px] uppercase">{evt.eventType}</p>
+                          <p className="font-mono text-[10px] text-gray-600 dark:text-gray-400 truncate">{evt.description}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                            {evt.txHash && (
+                              <a href={`${UNICHAIN_EXPLORER}/tx/${evt.txHash}`} target="_blank" rel="noopener noreferrer" className="text-[10px] hover:text-[#DFFF00] inline-flex items-center gap-1">
+                                tx <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
-            </div>
-
-            {/* 5-Signal Grid */}
-            <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] p-6">
-              <h3 className="font-black uppercase text-lg border-b-4 border-black dark:border-white pb-3 mb-5 flex items-center gap-2">
-                <Activity className="w-5 h-5" /> 5-Signal Detection
-              </h3>
-              <div className="space-y-3">
-                {signals.map((sig) => (
-                  <div key={sig.id} className="flex items-center gap-4 p-4 border-4 border-black dark:border-white hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] transition-all">
-                    <div className={`w-12 h-12 border-4 border-black ${sig.color} flex items-center justify-center`}>
-                      <sig.icon className="w-5 h-5 stroke-[2.5]" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-sm">{sig.id}</span>
-                        <span className="font-mono text-sm">{sig.label}</span>
-                      </div>
-                    </div>
-                    <span className="font-mono text-xs px-3 py-1 border-2 border-black dark:border-white bg-gray-100 dark:bg-[#1A1A1A]">MONITORING</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Event Log */}
-            <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] p-6">
-              <h3 className="font-black uppercase text-lg border-b-4 border-black dark:border-white pb-3 mb-5 flex items-center gap-2">
-                <Clock className="w-5 h-5" /> Event Log
-                {events.length > 0 && (
-                  <span className="ml-auto bg-black text-[#DFFF00] font-mono text-xs px-3 py-1">{events.length} EVENTS</span>
-                )}
-              </h3>
-              {events.length === 0 ? (
-                <div className="border-4 border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
-                  <p className="font-mono text-gray-400">No events detected yet.</p>
-                  <p className="font-mono text-gray-400 text-xs mt-1">Polling VestingHook on Unichain Sepolia...</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {events.map((evt) => (
-                    <div key={evt.id} className="p-3 border-4 border-black dark:border-white flex items-center gap-3 font-mono text-xs hover:bg-gray-50 dark:hover:bg-[#1A1A1A] transition">
-                      <span className={`shrink-0 w-3 h-3 border-2 border-black dark:border-white ${
-                        evt.eventType === 'RiskElevated' || evt.eventType === 'LockExtended'
-                          ? 'bg-[#FF3333]'
-                          : evt.eventType === 'MilestoneUnlocked'
-                          ? 'bg-[#DFFF00]'
-                          : 'bg-gray-300 dark:bg-gray-600'
-                      }`} />
-                      <span className="font-black shrink-0 w-40 uppercase text-[10px]">{evt.eventType}</span>
-                      <span className="flex-1 truncate text-gray-600 dark:text-gray-400">{evt.description}</span>
-                      <span className="shrink-0 text-gray-400">
-                        {new Date(evt.timestamp).toLocaleTimeString()}
-                      </span>
-                      {evt.txHash && (
-                        <a href={`${UNICHAIN_EXPLORER}/tx/${evt.txHash}`} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:text-[#DFFF00]">
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         )}

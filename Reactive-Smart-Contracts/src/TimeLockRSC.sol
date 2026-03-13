@@ -61,9 +61,15 @@ contract TimeLockRSC is AbstractReactive {
     uint16 private constant S1_POINTS = 45;
     uint16 private constant S1_DECAY  = 5;
 
+    /// @notice Absolute fallback threshold for S1 when lpLocked is unavailable in current execution context
+    uint256 private constant S1_FALLBACK_ABS_OUTFLOW = 100 ether;
+
     /// @notice S2: Genesis wallet outflow > 15% → +40 pts, decay -5/day
     uint16 private constant S2_POINTS = 40;
     uint16 private constant S2_DECAY  = 5;
+
+    /// @notice Absolute fallback threshold for S2 when lpLocked is unavailable in current execution context
+    uint256 private constant S2_FALLBACK_ABS_OUTFLOW = 75 ether;
 
     /// @notice S3: Price crash ≥ 30% / block   → +35 pts, decay -3/day
     uint16 private constant S3_POINTS = 35;
@@ -177,6 +183,32 @@ contract TimeLockRSC is AbstractReactive {
     event SignalTriggered(address indexed team, uint8 signalId, uint16 points);
     event ComboBonus(address indexed team, uint8 activeCount);
 
+    // Debug events (temporary instrumentation)
+    event DebugReactMeta(
+        uint256 indexed topic0,
+        uint256 topic1,
+        uint256 topic2,
+        uint256 topic3,
+        uint256 chainId,
+        address originContract,
+        uint256 blockNumber,
+        uint256 logIndex,
+        uint256 dataLength,
+        bytes32 dataHash
+    );
+    event DebugPositionRegDecoded(address indexed team, address indexed tokenAddr, bytes32 indexed poolId);
+    event DebugPoolMetricsTeamLookup(bytes32 indexed poolId, address indexed team);
+    event DebugCrashTeamLookup(bytes32 indexed poolId, address indexed team);
+    event DebugTransferTeamLookup(address indexed from, address indexed team);
+    event DebugPositionLockedDecoded(address indexed team, bytes32 indexed poolId, uint256 amount);
+    event DebugMilestoneMetrics(address indexed team, uint256 tvl, uint256 cumulativeVol, uint256 uniqueUsers);
+    event DebugDynamicSubscribeCallbackEmitted(address indexed team, address indexed tokenAddr, bytes32 indexed poolId);
+    event DebugSubscribeToTeamCalled(address indexed rvmId, address indexed team, address indexed tokenAddr, bytes32 poolId);
+    event DebugUnlockCallbackQueued(address indexed team, uint8 milestoneId);
+    event DebugPauseCallbackQueued(address indexed team, uint32 pauseHours);
+    event DebugExtendCallbackQueued(address indexed team, uint32 penaltyDays);
+    event DebugBootstrapPositionRegSubscription(bool success);
+
     // ═══════════════════════════════════════════════════════════════════════════
     //                              ERRORS
     // ═══════════════════════════════════════════════════════════════════════════
@@ -208,14 +240,20 @@ contract TimeLockRSC is AbstractReactive {
         // PERMANENT subscription: PositionRegistered — fires for EVERY new team launch
         // Bootstraps all dynamic subscriptions per team
         if (!vm) {
-            service.subscribe(
+            try service.subscribe(
                 _originChainId,
                 _hookAddr,
                 POSITION_REG_TOPIC,
                 REACTIVE_IGNORE,
                 REACTIVE_IGNORE,
                 REACTIVE_IGNORE
-            );
+            ) {
+                emit DebugBootstrapPositionRegSubscription(true);
+            } catch {
+                // Do not block deployment if subscription payment/registration fails in constructor.
+                // Use bootstrapPositionRegSubscription() after deployment.
+                emit DebugBootstrapPositionRegSubscription(false);
+            }
         }
     }
 
@@ -227,24 +265,52 @@ contract TimeLockRSC is AbstractReactive {
     function react(LogRecord calldata log) external vmOnly {
         totalReactCalls++;
 
+        emit DebugReactMeta(
+            log.topic_0,
+            log.topic_1,
+            log.topic_2,
+            log.topic_3,
+            log.chain_id,
+            log._contract,
+            log.block_number,
+            log.log_index,
+            log.data.length,
+            keccak256(log.data)
+        );
+
         uint256 topic = log.topic_0;
 
         if (topic == POSITION_REG_TOPIC) {
             _indexNewTeam(log);
         } else if (topic == POOL_METRICS_TOPIC) {
-            address team = poolToTeam[bytes32(log.topic_1)];
+            bytes32 poolId = bytes32(log.topic_1);
+            address team = poolToTeam[poolId];
+            emit DebugPoolMetricsTeamLookup(poolId, team);
             if (team != address(0)) {
                 _evalMilestone(team, log);
                 _evalSellRatio(team, log);  // S4
             }
         } else if (topic == CRASH_TOPIC) {
-            address team = poolToTeam[bytes32(log.topic_1)];
+            bytes32 poolId = bytes32(log.topic_1);
+            address team = poolToTeam[poolId];
+            emit DebugCrashTeamLookup(poolId, team);
             if (team != address(0)) {
                 _evalPriceCrash(team, log); // S3
             }
         } else if (topic == TRANSFER_TOPIC) {
             address from = address(uint160(log.topic_1));
             address team = walletToTeam[from];
+
+            // Fallback: if team mapping is missing in current execution context,
+            // treat sender as team to keep S1/S2 monitoring functional.
+            if (team == address(0)) {
+                team = from;
+                TeamConfig storage cfg = configs[team];
+                if (cfg.team == address(0)) cfg.team = team;
+                if (cfg.deployer == address(0)) cfg.deployer = team;
+            }
+
+            emit DebugTransferTeamLookup(from, team);
             if (team != address(0)) {
                 // Determine if deployer (S1) or genesis wallet (S2)
                 if (from == configs[team].deployer) {
@@ -257,6 +323,7 @@ contract TimeLockRSC is AbstractReactive {
             address team = address(uint160(log.topic_1));
             bytes32 poolId = bytes32(log.topic_2);
             uint256 amount = abi.decode(log.data, (uint256));
+            emit DebugPositionLockedDecoded(team, poolId, amount);
             configs[team].lpLocked += amount;
             emit LPLocked(poolId, team, amount);
         }
@@ -278,6 +345,8 @@ contract TimeLockRSC is AbstractReactive {
         address tokenAddr = address(uint160(log.topic_2));
         bytes32 poolId   = bytes32(log.topic_3);
 
+        emit DebugPositionRegDecoded(team, tokenAddr, poolId);
+
         TeamConfig storage cfg = configs[team];
         cfg.team      = team;
         cfg.tokenAddr = tokenAddr;
@@ -288,40 +357,19 @@ contract TimeLockRSC is AbstractReactive {
         poolToTeam[poolId]   = team;
         walletToTeam[team]   = team; // deployer wallet → team
 
-        // DYNAMIC subscriptions: add per-team subscriptions
-        if (!vm) {
-            // PoolMetricsUpdated for this pool (topic1 = poolId)
-            service.subscribe(
-                ORIGIN_CHAIN_ID, HOOK_ADDR,
-                POOL_METRICS_TOPIC,
-                uint256(poolId),
-                REACTIVE_IGNORE, REACTIVE_IGNORE
-            );
-
-            // CrashDetected for this pool
-            service.subscribe(
-                ORIGIN_CHAIN_ID, HOOK_ADDR,
-                CRASH_TOPIC,
-                uint256(poolId),
-                REACTIVE_IGNORE, REACTIVE_IGNORE
-            );
-
-            // PositionLocked for this team
-            service.subscribe(
-                ORIGIN_CHAIN_ID, HOOK_ADDR,
-                POSITION_LOCKED_TOPIC,
-                uint256(uint160(team)),
-                REACTIVE_IGNORE, REACTIVE_IGNORE
-            );
-
-            // Transfer events from deployer address (S1)
-            service.subscribe(
-                ORIGIN_CHAIN_ID, tokenAddr,
-                TRANSFER_TOPIC,
-                uint256(uint160(team)), // topic1 = from = deployer
-                REACTIVE_IGNORE, REACTIVE_IGNORE
-            );
-        }
+        // ReactVM cannot call service.subscribe() directly.
+        // Emit a Callback to the RNK instance of this contract, which will
+        // call subscribeToTeam() (rnOnly) to register the dynamic subscriptions.
+        // address(0) = RVM ID placeholder — Reactive Network overwrites it.
+        bytes memory subPayload = abi.encodeWithSignature(
+            "subscribeToTeam(address,address,address,bytes32)",
+            address(0),
+            team,
+            tokenAddr,
+            poolId
+        );
+        emit Callback(block.chainid, address(this), CALLBACK_GAS_LIMIT, subPayload);
+        emit DebugDynamicSubscribeCallbackEmitted(team, tokenAddr, poolId);
 
         emit TeamIndexed(team, poolId, tokenAddr);
     }
@@ -343,6 +391,8 @@ contract TimeLockRSC is AbstractReactive {
         (uint256 tvl, uint256 cumulativeVol, uint256 uniqueUsers) =
             abi.decode(log.data, (uint256, uint256, uint256));
 
+        emit DebugMilestoneMetrics(team, tvl, cumulativeVol, uniqueUsers);
+
         for (uint256 i = 0; i < 3; i++) {
             MilestoneData storage m = cfg.milestones[i];
             if (m.complete) continue;
@@ -360,14 +410,16 @@ contract TimeLockRSC is AbstractReactive {
                 m.complete = true;
                 cfg.totalUnlockedPct += m.unlockPct;
 
-                // Cross-chain callback: authorizeUnlock(team, milestoneId)
+                // Cross-chain callback: address(0) = RVM ID slot (overwritten by Reactive Network)
                 bytes memory payload = abi.encodeWithSignature(
-                    "authorizeUnlock(address,uint8)",
+                    "authorizeUnlock(address,address,uint8)",
+                    address(0),
                     team,
                     uint8(i)
                 );
                 emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
                 totalCallbacks++;
+                emit DebugUnlockCallbackQueued(team, uint8(i));
 
                 emit UnlockAuthorized(team, uint8(i));
             }
@@ -386,10 +438,15 @@ contract TimeLockRSC is AbstractReactive {
         uint256 amount = abi.decode(log.data, (uint256));
         TeamConfig storage cfg = configs[team];
 
-        // Simple threshold: if transfer amount > 20% of team's locked LP value
-        if (cfg.lpLocked > 0 && amount * 100 / cfg.lpLocked > 20) {
+        // Primary threshold: transfer amount > 20% of team's locked LP value.
+        // Fallback: if lpLocked is unavailable in this execution context, use an absolute threshold.
+        if ((cfg.lpLocked > 0 && amount * 100 / cfg.lpLocked > 20) ||
+            (cfg.lpLocked == 0 && amount >= S1_FALLBACK_ABS_OUTFLOW)) {
             _triggerSignal(team, 0, S1_POINTS, S1_DECAY);
         }
+
+        _updateScore(team);
+        _dispatch(team);
     }
 
     /**
@@ -400,9 +457,15 @@ contract TimeLockRSC is AbstractReactive {
         uint256 amount = abi.decode(log.data, (uint256));
         TeamConfig storage cfg = configs[team];
 
-        if (cfg.lpLocked > 0 && amount * 100 / cfg.lpLocked > 15) {
+        // Primary threshold: transfer amount > 15% of team's locked LP value.
+        // Fallback: if lpLocked is unavailable in this execution context, use an absolute threshold.
+        if ((cfg.lpLocked > 0 && amount * 100 / cfg.lpLocked > 15) ||
+            (cfg.lpLocked == 0 && amount >= S2_FALLBACK_ABS_OUTFLOW)) {
             _triggerSignal(team, 1, S2_POINTS, S2_DECAY);
         }
+
+        _updateScore(team);
+        _dispatch(team);
     }
 
     /**
@@ -527,23 +590,27 @@ contract TimeLockRSC is AbstractReactive {
             // 25-49: emit RiskElevated (no callback, frontend-only)
             emit RiskElevated(team, cfg.riskScore);
         } else if (tier == TIER_ALERT) {
-            // 50-74: callback → pauseWithdrawals(team, 48 hours)
+            // 50-74: callback → pauseWithdrawals (address(0) = RVM ID slot)
             bytes memory payload = abi.encodeWithSignature(
-                "pauseWithdrawals(address,uint32)",
+                "pauseWithdrawals(address,address,uint32)",
+                address(0),
                 team,
                 uint32(48)
             );
             emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
             totalCallbacks++;
+            emit DebugPauseCallbackQueued(team, uint32(48));
         } else if (tier == TIER_RAGE) {
-            // 75+: callback → extendLock(team, 30 days)
+            // 75+: callback → extendLock (address(0) = RVM ID slot)
             bytes memory payload = abi.encodeWithSignature(
-                "extendLock(address,uint32)",
+                "extendLock(address,address,uint32)",
+                address(0),
                 team,
                 uint32(30)
             );
             emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
             totalCallbacks++;
+            emit DebugExtendCallbackQueued(team, uint32(30));
         }
     }
 
@@ -561,6 +628,22 @@ contract TimeLockRSC is AbstractReactive {
     modifier onlyOwner() {
         if (msg.sender != OWNER) revert OnlyOwner();
         _;
+    }
+
+    /**
+     * @notice Manually bootstrap the permanent PositionRegistered subscription.
+     * @dev Use this after deployment if constructor-time subscribe failed.
+     */
+    function bootstrapPositionRegSubscription() external rnOnly onlyOwner {
+        service.subscribe(
+            ORIGIN_CHAIN_ID,
+            HOOK_ADDR,
+            POSITION_REG_TOPIC,
+            REACTIVE_IGNORE,
+            REACTIVE_IGNORE,
+            REACTIVE_IGNORE
+        );
+        emit DebugBootstrapPositionRegSubscription(true);
     }
 
     /**
@@ -648,4 +731,74 @@ contract TimeLockRSC is AbstractReactive {
         SignalState storage sig = configs[team].signals[signalId];
         return (sig.triggeredAt, sig.basePoints, sig.decayPerDay);
     }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //       DYNAMIC SUBSCRIPTION REGISTRATION — RNK INSTANCE ONLY
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * @notice Called via Callback from the ReactVM after a PositionRegistered event.
+     *         Registers per-team event subscriptions via the system contract.
+     * @dev rnOnly: only runs on the RNK (Lasna) instance, never in the ReactVM.
+     *      The first argument is the RVM ID injected by Reactive Network (ignored).
+     * @param rvm_id     RVM ID — injected by Reactive Network, not used
+     * @param team       Team address from the PositionRegistered event
+     * @param tokenAddr  Token address for Transfer event monitoring
+     * @param poolId     Pool ID for PoolMetricsUpdated / CrashDetected filtering
+     */
+    function subscribeToTeam(
+        address rvm_id,    /* injected & overwritten by Reactive Network — not used */
+        address team,
+        address tokenAddr,
+        bytes32 poolId
+    ) external rnOnly {
+        // Persist minimal team index state on RNK copy.
+        // If ReactVM execution context is recreated between events, this makes
+        // pool/team lookup available for subsequent react() invocations.
+        TeamConfig storage cfg = configs[team];
+        cfg.team = team;
+        cfg.tokenAddr = tokenAddr;
+        cfg.poolId = poolId;
+        if (cfg.deployer == address(0)) {
+            cfg.deployer = team;
+        }
+        cfg.isIndexed = true;
+
+        poolToTeam[poolId] = team;
+        walletToTeam[team] = team;
+
+        emit DebugSubscribeToTeamCalled(rvm_id, team, tokenAddr, poolId);
+
+        // PoolMetricsUpdated filtered by poolId (topic1)
+        service.subscribe(
+            ORIGIN_CHAIN_ID, HOOK_ADDR,
+            POOL_METRICS_TOPIC,
+            uint256(poolId),
+            REACTIVE_IGNORE, REACTIVE_IGNORE
+        );
+
+        // CrashDetected filtered by poolId (topic1)
+        service.subscribe(
+            ORIGIN_CHAIN_ID, HOOK_ADDR,
+            CRASH_TOPIC,
+            uint256(poolId),
+            REACTIVE_IGNORE, REACTIVE_IGNORE
+        );
+
+        // PositionLocked filtered by team address (topic1)
+        service.subscribe(
+            ORIGIN_CHAIN_ID, HOOK_ADDR,
+            POSITION_LOCKED_TOPIC,
+            uint256(uint160(team)),
+            REACTIVE_IGNORE, REACTIVE_IGNORE
+        );
+
+        // ERC20 Transfer from team/deployer address (topic1 = from)
+        service.subscribe(
+            ORIGIN_CHAIN_ID, tokenAddr,
+            TRANSFER_TOPIC,
+            uint256(uint160(team)),
+            REACTIVE_IGNORE, REACTIVE_IGNORE
+        );
+    }
+
 }

@@ -31,7 +31,7 @@ contract DeployReactiveScript is Script {
 
         vm.startBroadcast();
 
-        TimeLockRSC rsc = new TimeLockRSC{value: 0.5 ether}(
+        TimeLockRSC rsc = new TimeLockRSC{value: 2 ether}(
             originChainId,
             callbackChainId,
             hookAddr,

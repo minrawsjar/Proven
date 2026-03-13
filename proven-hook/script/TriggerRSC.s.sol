@@ -59,13 +59,13 @@ contract TriggerRSC is Script {
 
     // Deployed addresses on Unichain Sepolia
     address constant USDC  = 0x11aFfEac94B440C3c332813450db66fb3285BFB2;
-    address constant PRVN  = 0x9af9C6fe2a845354EcC3bDCe1af9c427Fb42Ed70;
-    address constant HOOK  = 0x93786437631FB0716C77A76ceE94Cd45E27b0640;
+    address constant PRVN  = 0x3c2d1A5c84B7F513ed07Fe2e71dF9538aC217F7c;
+    address constant HOOK  = 0x854BcA4456489aCa8Ccf6bA37D6EF3E9869E8640;
     address constant SWAP_ROUTER = 0x9140a78c1A137c7fF1c151EC8231272aF78a99A4;
 
     // New wallet to register position from
-    address constant NEW_WALLET = 0x855c79A8992c0AB5Ce7701B18868c00797725769;
-    uint256 constant NEW_WALLET_PK = 0x9b2d1b1d314a1cdbcf2608ba7fcf372ea6e3e3d6901aa1470872ad0082bd1980;
+    address constant NEW_WALLET = 0xFF4604cC16bf1fcAD5cA4C26B75f4A6fDD3BA13a;
+    uint256 constant NEW_WALLET_PK = 0x880b65064329685fa918ca3e8c5b64b15d1b1d6ba0eb8e0a807b258052b8d6b4;
 
     function getPoolKey() internal pure returns (PoolKey memory) {
         return PoolKey({

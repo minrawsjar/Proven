@@ -41,11 +41,11 @@ interface IPoolSwapTest {
 contract TriggerSwap is Script {
     // ── Deployed addresses on Unichain Sepolia ──
     address constant POOL_SWAP_TEST = 0x9140a78c1A137c7fF1c151EC8231272aF78a99A4;
-    address constant VESTING_HOOK   = 0x93786437631FB0716C77A76ceE94Cd45E27b0640;
+    address constant VESTING_HOOK   = 0x854BcA4456489aCa8Ccf6bA37D6EF3E9869E8640;
 
     // ── Pool tokens (sorted) ──
     address constant TOKEN0 = 0x11aFfEac94B440C3c332813450db66fb3285BFB2; // USDC (lower address)
-    address constant TOKEN1 = 0x9af9C6fe2a845354EcC3bDCe1af9c427Fb42Ed70; // PRVN (higher address)
+    address constant TOKEN1 = 0x3c2d1A5c84B7F513ed07Fe2e71dF9538aC217F7c; // PTT
 
     // ── Pool parameters (must match what was initialized) ──
     uint24  constant FEE          = 3000;      // 0.3%
@@ -57,7 +57,7 @@ contract TriggerSwap is Script {
 
         console.log("=== Trigger Swap Script ===");
         console.log("Deployer:", deployer);
-        console.log("Pool: TOKEN0(USDC) / TOKEN1(PRVN)");
+        console.log("Pool: TOKEN0(USDC) / TOKEN1(PTT)");
 
         IPoolSwapTest.PoolKey memory poolKey = IPoolSwapTest.PoolKey({
             currency0:  TOKEN0,
@@ -67,7 +67,7 @@ contract TriggerSwap is Script {
             hooks:      VESTING_HOOK
         });
 
-        // Swap 10 USDC (token0) for PRVN (token1) — zeroForOne = true
+        // Swap 10 USDC (token0) for PTT (token1) — zeroForOne = true
         int256 swapAmount = 10e18; // 10 tokens (18 decimals)
 
         IPoolSwapTest.SwapParams memory params = IPoolSwapTest.SwapParams({
@@ -89,7 +89,7 @@ contract TriggerSwap is Script {
         console.log("Approved tokens for PoolSwapTest");
 
         // Execute swap — this triggers afterSwap → PoolMetricsUpdated event
-        console.log("Executing swap: 10 USDC -> PRVN");
+        console.log("Executing swap: 10 USDC -> PTT");
         IPoolSwapTest(POOL_SWAP_TEST).swap(
             poolKey,
             params,
