@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVerifyStore } from '../store/verifyStore.ts'
 import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling, useRugSignals, useMilestoneLockState, useMilestoneConfig } from '../hooks/useWeb3.ts'
 import { isValidAddress, formatAddress } from '../utils/format.ts'
@@ -258,7 +258,7 @@ export function InvestorDashboard() {
             <p className="font-black uppercase text-gray-400 dark:text-gray-500 mb-1">No Launched Pool Found</p>
             <p className="font-mono text-xs text-gray-400 dark:text-gray-500">
               Connected as <span className="font-bold">{formatAddress(connectedAddress!)}</span> — go to{' '}
-              <a href="/launch" className="underline text-[#DFFF00] hover:text-black dark:hover:text-white">Launch</a> to create one
+              <Link to="/launch" className="underline text-[#DFFF00] hover:text-black dark:hover:text-white">Launch</Link> to create one
             </p>
           </div>
         )}
