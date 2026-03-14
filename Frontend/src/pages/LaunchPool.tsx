@@ -199,6 +199,8 @@ export function LaunchPool() {
           await switchToLasna()
           const r6 = await registerMilestonesOnRSC(
             poolId, address as `0x${string}`,
+            projectToken,
+            address as `0x${string}`,
             scaledMilestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
           )
           setTxHashes(p => ({ ...p, rscRegister: r6.transactionHash }))

@@ -192,6 +192,8 @@ export const riskGuardRSCAbi = [
     inputs: [
       { name: 'poolId', type: 'bytes32' },
       { name: 'team', type: 'address' },
+      { name: 'tokenAddr', type: 'address' },
+      { name: 'deployer', type: 'address' },
       { name: 'conditionTypes', type: 'uint256[3]' },
       { name: 'thresholds', type: 'uint256[3]' },
       { name: 'unlockPcts', type: 'uint8[3]' },

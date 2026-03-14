@@ -155,6 +155,7 @@ export const usePositionData = (teamAddress?: string) => {
   const [data, setData] = useState<PositionData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedTeam, setResolvedTeam] = useState<`0x${string}` | null>(null)
 
   useEffect(() => {
     if (!teamAddress) return
@@ -164,34 +165,81 @@ export const usePositionData = (teamAddress?: string) => {
     const fetch = async () => {
       setLoading(true)
       setError(null)
+      setResolvedTeam(null)
       try {
-        const [position, unlockedPct] = await Promise.all([
-          unichainClient.readContract({
-            address: VESTING_HOOK_ADDRESS,
-            abi: vestingHookAbi,
-            functionName: 'positions',
-            args: [addr],
-          }),
-          unichainClient.readContract({
-            address: VESTING_HOOK_ADDRESS,
-            abi: vestingHookAbi,
-            functionName: 'unlockedPctByTeam',
-            args: [addr],
-          }),
-        ])
+        const readByTeam = async (team: `0x${string}`) => {
+          const [position, unlockedPct] = await Promise.all([
+            unichainClient.readContract({
+              address: VESTING_HOOK_ADDRESS,
+              abi: vestingHookAbi,
+              functionName: 'positions',
+              args: [team],
+            }),
+            unichainClient.readContract({
+              address: VESTING_HOOK_ADDRESS,
+              abi: vestingHookAbi,
+              functionName: 'unlockedPctByTeam',
+              args: [team],
+            }),
+          ])
 
-        if (!cancelled) {
-          const [team, tokenAddr, lpAmount, registeredAt, lockExtendedUntil] = position as [
+          const [pTeam, tokenAddr, lpAmount, registeredAt, lockExtendedUntil] = position as [
             `0x${string}`, `0x${string}`, bigint, bigint, bigint,
           ]
-          setData({
-            team,
+
+          return {
+            team: pTeam,
             tokenAddr,
             lpAmount,
             registeredAt,
             lockExtendedUntil,
             unlockedPct: Number(unlockedPct),
-          })
+          } satisfies PositionData
+        }
+
+        let resolved = await readByTeam(addr)
+
+        const isEmptyPosition =
+          resolved.team === '0x0000000000000000000000000000000000000000' || resolved.registeredAt === 0n
+
+        if (isEmptyPosition) {
+          try {
+            const owner = await unichainClient.readContract({
+              address: addr,
+              abi: [
+                {
+                  type: 'function',
+                  name: 'owner',
+                  inputs: [],
+                  outputs: [{ name: '', type: 'address' }],
+                  stateMutability: 'view',
+                },
+              ] as const,
+              functionName: 'owner',
+            }) as `0x${string}`
+
+            if (
+              owner &&
+              owner !== '0x0000000000000000000000000000000000000000' &&
+              owner.toLowerCase() !== addr.toLowerCase()
+            ) {
+              const ownerPosition = await readByTeam(owner)
+              const ownerHasPosition =
+                ownerPosition.team !== '0x0000000000000000000000000000000000000000' &&
+                ownerPosition.registeredAt > 0n
+
+              if (ownerHasPosition) {
+                resolved = ownerPosition
+                if (!cancelled) setResolvedTeam(owner)
+              }
+            }
+          } catch {
+            // Ignore non-ownable contracts or EOAs.
+          }
+        }
+
+        if (!cancelled) {
+          setData(resolved)
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to read position')
@@ -203,7 +251,7 @@ export const usePositionData = (teamAddress?: string) => {
     return () => { cancelled = true }
   }, [teamAddress])
 
-  return { data, loading, error }
+  return { data, loading, error, resolvedTeam }
 }
 
 export const useMilestoneConfig = (teamAddress?: string) => {
@@ -832,6 +880,8 @@ export const useContractWrites = () => {
     async (
       poolId: `0x${string}`,
       teamAddress: `0x${string}`,
+      tokenAddress: `0x${string}`,
+      deployerAddress: `0x${string}`,
       milestones: Array<{ type: string; threshold: number; unlockPercentage: number }>,
     ) => {
       // Get a fresh wallet client for the currently connected chain (should be Lasna after switch)
@@ -853,7 +903,7 @@ export const useContractWrites = () => {
         address: RISK_GUARD_RSC_ADDRESS,
         abi: riskGuardRSCAbi,
         functionName: 'registerMilestones',
-        args: [poolId, teamAddress, conditionTypes, thresholds, unlockPcts],
+        args: [poolId, teamAddress, tokenAddress, deployerAddress, conditionTypes, thresholds, unlockPcts],
         chain: lasnaTestnet,
       })
 

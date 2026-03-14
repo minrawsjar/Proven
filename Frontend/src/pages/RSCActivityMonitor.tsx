@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { createPublicClient, http, type Log, keccak256, toHex, decodeAbiParameters, formatEther } from 'viem'
+import { createPublicClient, http, type Log, keccak256, toHex, decodeAbiParameters, formatUnits, parseAbiItem } from 'viem'
 import { useRSCMonitorStore } from '../store/rscMonitorStore.ts'
 import {
   VESTING_HOOK_ADDRESS,
   RISK_GUARD_RSC_ADDRESS,
+  CALLBACK_RECEIVER_ADDRESS,
   UNICHAIN_RPC,
   LASNA_RPC,
   UNICHAIN_EXPLORER,
@@ -17,6 +18,11 @@ import { Radio, Zap, ArrowRight, Pause, Play, ExternalLink, Layers, AlertTriangl
 const unichainClient = createPublicClient({ transport: http(UNICHAIN_RPC) })
 const lasnaClient = createPublicClient({ transport: http(LASNA_RPC) })
 const MONITOR_LOOKBACK_BLOCKS = 5_000_000n
+const CALLBACK_LOOKBACK_BLOCKS = 300_000n
+
+const debugReactProbeEvent = parseAbiItem(
+  'event DebugReactProbe(address indexed rsc, uint256 reactCalls, uint256 topic0, uint256 sourceChainId)',
+)
 
 /* ── Build a proper topic0 → event name map using keccak256 of event signatures ── */
 const buildTopicMap = (): Record<string, string> => {
@@ -71,8 +77,8 @@ const decodePoolMetrics = (data: `0x${string}` | undefined): string => {
       [{ name: 'tvl', type: 'uint256' }, { name: 'vol', type: 'uint256' }, { name: 'users', type: 'uint256' }],
       data as `0x${string}`,
     )
-    const tvl = Number(formatEther(decoded[0])).toFixed(2)
-    const vol = Number(formatEther(decoded[1])).toFixed(2)
+    const tvl = Number(formatUnits(decoded[0], 6)).toFixed(2)
+    const vol = Number(formatUnits(decoded[1], 6)).toFixed(2)
     return `TVL: ${tvl} · Vol: ${vol} · Users: ${decoded[2].toString()}`
   } catch {
     return ''
@@ -208,7 +214,7 @@ export function RSCActivityMonitor() {
     if (isPaused) return
     const pollStats = async () => {
       try {
-        const [reactCalls, callbacks] = await Promise.all([
+        const [reactCallsOnRsc, callbacksOnRsc, currentUniBlock] = await Promise.all([
           lasnaClient.readContract({
             address: RISK_GUARD_RSC_ADDRESS,
             abi: riskGuardRSCAbi,
@@ -219,14 +225,34 @@ export function RSCActivityMonitor() {
             abi: riskGuardRSCAbi,
             functionName: 'totalCallbacks',
           }),
+          unichainClient.getBlockNumber(),
         ])
+
+        const fromUniBlock = currentUniBlock > CALLBACK_LOOKBACK_BLOCKS
+          ? currentUniBlock - CALLBACK_LOOKBACK_BLOCKS
+          : 0n
+
+        // VM-side react() is surfaced via callback DebugReactProbe on Unichain.
+        // Use this as source-of-truth if RN counter is zero.
+        const debugProbeLogs = await unichainClient.getLogs({
+          address: CALLBACK_RECEIVER_ADDRESS,
+          event: debugReactProbeEvent,
+          args: { rsc: RISK_GUARD_RSC_ADDRESS as `0x${string}` },
+          fromBlock: fromUniBlock,
+          toBlock: currentUniBlock,
+        })
+
+        const latestProbe = debugProbeLogs.length > 0 ? debugProbeLogs[debugProbeLogs.length - 1] : undefined
+        const reactCallsFromProbe = latestProbe ? Number(latestProbe.args.reactCalls ?? 0n) : 0
+        const resolvedReactCalls = Math.max(Number(reactCallsOnRsc), reactCallsFromProbe)
+
         setStats({
-          totalReactCalls: Number(reactCalls),
-          totalCallbacksDispatched: Number(callbacks),
+          totalReactCalls: resolvedReactCalls,
+          totalCallbacksDispatched: Number(callbacksOnRsc),
           totalMilestonesUnlocked: stats.totalMilestonesUnlocked,
           totalLockExtensionsApplied: stats.totalLockExtensionsApplied,
         })
-        setRelayStatus(Number(reactCalls) > 0 ? 'active' : 'waiting')
+        setRelayStatus(resolvedReactCalls > 0 ? 'active' : 'waiting')
       } catch (err) {
         console.error('RSC stats polling error:', err)
       }

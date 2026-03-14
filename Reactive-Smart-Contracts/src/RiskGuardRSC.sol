@@ -741,17 +741,51 @@ contract RiskGuardRSC is AbstractReactive {
     function registerMilestones(
         bytes32    poolId,
         address    team,
+        address    tokenAddr,
+        address    deployer,
+        uint256[3] calldata conditionTypes,
+        uint256[3] calldata thresholds,
+        uint8[3]   calldata unlockPcts
+    ) external onlyOwner {
+        _registerMilestonesCore(poolId, team, tokenAddr, deployer, conditionTypes, thresholds, unlockPcts);
+    }
+
+    /**
+     * @notice Backward-compatible overload for older callers.
+     *         Uses existing tokenAddr if already indexed, else address(0), and deployer defaults to team.
+     */
+    function registerMilestones(
+        bytes32    poolId,
+        address    team,
         uint256[3] calldata conditionTypes,
         uint256[3] calldata thresholds,
         uint8[3]   calldata unlockPcts
     ) external onlyOwner {
         TeamConfig storage cfg = configs[team];
+        address tokenAddr = cfg.tokenAddr;
+        _registerMilestonesCore(poolId, team, tokenAddr, team, conditionTypes, thresholds, unlockPcts);
+    }
+
+    function _registerMilestonesCore(
+        bytes32    poolId,
+        address    team,
+        address    tokenAddr,
+        address    deployer,
+        uint256[3] calldata conditionTypes,
+        uint256[3] calldata thresholds,
+        uint8[3]   calldata unlockPcts
+    ) internal {
+        TeamConfig storage cfg = configs[team];
         cfg.team       = team;
+        cfg.tokenAddr  = tokenAddr;
         cfg.poolId     = poolId;
+        cfg.deployer   = deployer == address(0) ? team : deployer;
         cfg.isIndexed  = true;
         cfg.totalUnlockedPct = 0;
 
         poolToTeam[poolId] = team;
+        walletToTeam[team] = team;
+        walletToTeam[cfg.deployer] = team;
 
         for (uint256 i = 0; i < 3; i++) {
             cfg.milestones[i] = MilestoneData({
@@ -760,6 +794,12 @@ contract RiskGuardRSC is AbstractReactive {
                 unlockPct:     unlockPcts[i],
                 complete:      false
             });
+        }
+
+        // Manual bootstrap path: when auto-indexing from PositionRegistered does not fire,
+        // subscribe directly from RNK instance so react() can start receiving events.
+        if (!vm && tokenAddr != address(0)) {
+            _subscribeTeamFeeds(team, tokenAddr, poolId);
         }
     }
 
@@ -894,6 +934,10 @@ contract RiskGuardRSC is AbstractReactive {
 
         emit DebugSubscribeToTeamCalled(rvm_id, team, tokenAddr, poolId);
 
+        _subscribeTeamFeeds(team, tokenAddr, poolId);
+    }
+
+    function _subscribeTeamFeeds(address team, address tokenAddr, bytes32 poolId) internal {
         // PoolMetricsUpdated filtered by poolId (topic1)
         service.subscribe(
             ORIGIN_CHAIN_ID, HOOK_ADDR,
@@ -918,20 +962,20 @@ contract RiskGuardRSC is AbstractReactive {
             REACTIVE_IGNORE, REACTIVE_IGNORE
         );
 
-        // ERC20 Transfer from team/deployer address (topic1 = from)
+        // ERC20 Transfer from deployer/team address (topic1 = from)
         service.subscribe(
             ORIGIN_CHAIN_ID, tokenAddr,
             TRANSFER_TOPIC,
-            uint256(uint160(team)),
+            uint256(uint160(configs[team].deployer == address(0) ? team : configs[team].deployer)),
             REACTIVE_IGNORE, REACTIVE_IGNORE
         );
 
         // ERC20 Transfer from treasury address (S5), if configured
-        if (cfg.treasuryAddr != address(0)) {
+        if (configs[team].treasuryAddr != address(0)) {
             service.subscribe(
                 ORIGIN_CHAIN_ID, tokenAddr,
                 TRANSFER_TOPIC,
-                uint256(uint160(cfg.treasuryAddr)),
+                uint256(uint160(configs[team].treasuryAddr)),
                 REACTIVE_IGNORE, REACTIVE_IGNORE
             );
         }
