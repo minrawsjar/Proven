@@ -159,11 +159,11 @@ export function LaunchPool() {
     try {
       setTxStep('approve')
       const router = POOL_MODIFY_LIQUIDITY_TEST_ADDRESS as `0x${string}`
-      const MAX = 115792089237316195423570985008687907853269984665640564039457584007913129639935n
-      const r1 = await approveToken(projectToken, router, MAX)
+      // Approve only the exact amounts needed (safer than unlimited allowance)
+      const r1 = await approveToken(projectToken, router, tokenAmt)
       setTxHashes(p => ({ ...p, approve0: r1.transactionHash }))
       if (pairTokenAddr !== ZERO_ADDRESS) {
-        const r2 = await approveToken(pairTokenAddr, router, MAX)
+        const r2 = await approveToken(pairTokenAddr, router, pairAmt)
         setTxHashes(p => ({ ...p, approve1: r2.transactionHash }))
       }
 
