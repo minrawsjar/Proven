@@ -115,7 +115,11 @@ export function LaunchPool() {
     if (!isConnected || !address) { setTxError('Connect your wallet first'); return }
     if (isWrongNetwork) { ensureCorrectNetwork(); return }
     if (VESTING_HOOK_ADDRESS === '0x0000000000000000000000000000000000000000') {
-      setTxError('VestingHook not deployed yet — set VITE_HOOK_ADDRESS in .env'); return
+      setTxError(
+        `VestingHook not deployed yet — VITE_HOOK_ADDRESS=${VESTING_HOOK_ADDRESS}. ` +
+        'Set VITE_HOOK_ADDRESS in your .env or Vercel Environment Variables and rebuild/redeploy.'
+      )
+      return
     }
 
     const projectToken = poolConfig!.tokenAddress as `0x${string}`
