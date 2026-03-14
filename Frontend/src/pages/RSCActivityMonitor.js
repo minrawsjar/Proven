@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useRef } from 'react';
-import { createPublicClient, http, keccak256, toHex, decodeAbiParameters, formatEther } from 'viem';
+import { createPublicClient, http, keccak256, toHex, decodeAbiParameters, formatUnits } from 'viem';
 import { useRSCMonitorStore } from '../store/rscMonitorStore';
 import { VESTING_HOOK_ADDRESS, RISK_GUARD_RSC_ADDRESS, UNICHAIN_RPC, LASNA_RPC, UNICHAIN_EXPLORER, LASNA_EXPLORER, } from '../config/constants';
 import { vestingHookAbi, riskGuardRSCAbi } from '../config/contracts';
@@ -59,8 +59,9 @@ const decodePoolMetrics = (data) => {
         return '';
     try {
         const decoded = decodeAbiParameters([{ name: 'tvl', type: 'uint256' }, { name: 'vol', type: 'uint256' }, { name: 'users', type: 'uint256' }], data);
-        const tvl = Number(formatEther(decoded[0])).toFixed(2);
-        const vol = Number(formatEther(decoded[1])).toFixed(2);
+        // Default to USDC-style 6 decimals for pool metrics (TVL/Volume)
+        const tvl = Number(formatUnits(decoded[0], 6)).toFixed(2);
+        const vol = Number(formatUnits(decoded[1], 6)).toFixed(2);
         return `TVL: ${tvl} · Vol: ${vol} · Users: ${decoded[2].toString()}`;
     }
     catch {

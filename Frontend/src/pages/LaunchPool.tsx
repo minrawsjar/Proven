@@ -172,8 +172,19 @@ export function LaunchPool() {
       setTxHashes(p => ({ ...p, initPool: r3.transactionHash }))
 
       setTxStep('register')
+      // Scale TVL/VOLUME thresholds to pair token decimals before sending on-chain
+      const scaledMilestones = milestones.map((m) => {
+        if (m.type === 'TVL' || m.type === 'VOLUME') {
+          const base = BigInt(Math.floor(m.threshold))
+          const scaled = base * 10n ** BigInt(pairDecimals)
+          return { type: m.type, threshold: String(scaled), unlockPercentage: m.unlockPercentage }
+        }
+        // USERS stays as a plain integer
+        return { type: m.type, threshold: String(Math.floor(m.threshold)), unlockPercentage: m.unlockPercentage }
+      })
+
       const r4 = await registerVestingPosition(
-        milestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
+        scaledMilestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
         projectToken, poolId,
       )
       setTxHashes(p => ({ ...p, register: r4.transactionHash }))
@@ -188,7 +199,7 @@ export function LaunchPool() {
           await switchToLasna()
           const r6 = await registerMilestonesOnRSC(
             poolId, address as `0x${string}`,
-            milestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
+            scaledMilestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
           )
           setTxHashes(p => ({ ...p, rscRegister: r6.transactionHash }))
 
