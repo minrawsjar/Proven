@@ -209,6 +209,16 @@ export const riskGuardRSCAbi = [
     outputs: [],
     stateMutability: 'nonpayable',
   },
+  {
+    type: 'function',
+    name: 'setTreasuryAddress',
+    inputs: [
+      { name: 'team', type: 'address' },
+      { name: 'treasury', type: 'address' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
 
   // ── reads ──
   {

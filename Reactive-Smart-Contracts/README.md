@@ -59,7 +59,7 @@ Each signal contributes to a composite risk score (`0-100`) used to decide wheth
 | Contract | Chain | Address |
 |---|---|---|
 | ProvenCallback | Unichain Sepolia (1301) | [0xeaD222788a469141e3dee4e777F882ddA0b67c9F](https://sepolia.uniscan.xyz/address/0xeaD222788a469141e3dee4e777F882ddA0b67c9F) |
-| RiskGuardRSC | Lasna Testnet (5318007) | [0x403Fe0408976b518b2952BdF590135Ec6ba12ebc](https://lasna.reactscan.net/address/0x403Fe0408976b518b2952BdF590135Ec6ba12ebc) |
+| RiskGuardRSC | Lasna Testnet (5318007) | [0xEE8DAE2D3f142052bDb704Ba0D94e04eC1680193](https://lasna.reactscan.net/address/0xEE8DAE2D3f142052bDb704Ba0D94e04eC1680193) |
 
 ---
 

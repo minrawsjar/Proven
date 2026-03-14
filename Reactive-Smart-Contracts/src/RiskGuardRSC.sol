@@ -83,6 +83,9 @@ contract RiskGuardRSC is AbstractReactive {
     uint16 private constant S5_POINTS = 30;
     uint16 private constant S5_DECAY  = 4;
 
+    /// @notice Absolute fallback threshold for S5 when lpLocked is unavailable in current execution context
+    uint256 private constant S5_FALLBACK_ABS_OUTFLOW = 125 ether;
+
     /// @notice Combo bonus: 2+ signals active within 24h → +20 pts
     uint16 private constant COMBO_BONUS = 20;
     uint256 private constant COMBO_WINDOW = 24 hours;
@@ -143,6 +146,7 @@ contract RiskGuardRSC is AbstractReactive {
         address        tokenAddr;
         bytes32        poolId;
         address        deployer;      // auto-detected from PositionRegistered event sender
+        address        treasuryAddr;  // optional (address(0) = unset)
         MilestoneData[3] milestones;
         uint8          totalUnlockedPct;
         uint256        lpLocked;
@@ -166,6 +170,9 @@ contract RiskGuardRSC is AbstractReactive {
 
     /// @notice wallet address → team address (deployer wallets, genesis wallets)
     mapping(address => address) public walletToTeam;
+
+    /// @notice treasury wallet/contract address → team address (nullable, optional)
+    mapping(address => address) public treasuryToTeam;
 
     /// @notice Track total react() calls and callbacks for frontend monitoring
     uint256 public totalReactCalls;
@@ -327,6 +334,10 @@ contract RiskGuardRSC is AbstractReactive {
             address to = address(uint160(log.topic_2));
             address team = walletToTeam[from];
 
+            if (team == address(0)) {
+                team = treasuryToTeam[from];
+            }
+
             // If sender has no direct mapping, try to resolve via recent candidate link.
             if (team == address(0)) {
                 address candidateTeam = pendingGenesisTeam[from];
@@ -357,6 +368,11 @@ contract RiskGuardRSC is AbstractReactive {
 
             emit DebugTransferTeamLookup(from, team);
             if (team != address(0)) {
+                if (from == configs[team].treasuryAddr && from != address(0)) {
+                    _evalTreasuryDrain(team, log); // S5
+                    return;
+                }
+
                 // Learn potential genesis wallets directly in ReactVM context:
                 // when deployer sends tokens to a new wallet, mark recipient as candidate.
                 if (from == configs[team].deployer && to != address(0) && to != team && walletToTeam[to] == address(0)) {
@@ -549,6 +565,23 @@ contract RiskGuardRSC is AbstractReactive {
         // If cumulative volume > 80% of TVL in recent activity, that's suspicious
         if (tvl > 0 && cumulativeVol * 100 / tvl > 80) {
             _triggerSignal(team, 3, S4_POINTS, S4_DECAY);
+        }
+
+        _updateScore(team);
+        _dispatch(team);
+    }
+
+    /**
+     * @notice S5: Treasury drain > 25% → +30 pts
+     * @dev Triggered from Transfer event where from = configured treasury address
+     */
+    function _evalTreasuryDrain(address team, LogRecord calldata log) internal {
+        uint256 amount = abi.decode(log.data, (uint256));
+        TeamConfig storage cfg = configs[team];
+
+        if ((cfg.lpLocked > 0 && amount * 100 / cfg.lpLocked > 25) ||
+            (cfg.lpLocked == 0 && amount >= S5_FALLBACK_ABS_OUTFLOW)) {
+            _triggerSignal(team, 4, S5_POINTS, S5_DECAY);
         }
 
         _updateScore(team);
@@ -751,6 +784,38 @@ contract RiskGuardRSC is AbstractReactive {
         }
     }
 
+    /**
+     * @notice Set or clear treasury wallet/contract address for S5 monitoring.
+     * @dev Pass address(0) to clear (nullable behavior).
+     */
+    function setTreasuryAddress(address team, address treasury) external onlyOwner {
+        TeamConfig storage cfg = configs[team];
+
+        address prev = cfg.treasuryAddr;
+        if (prev != address(0)) {
+            treasuryToTeam[prev] = address(0);
+        }
+
+        cfg.treasuryAddr = treasury;
+
+        if (treasury == address(0)) {
+            return;
+        }
+
+        treasuryToTeam[treasury] = team;
+
+        if (!vm && cfg.tokenAddr != address(0)) {
+            service.subscribe(
+                ORIGIN_CHAIN_ID,
+                cfg.tokenAddr,
+                TRANSFER_TOPIC,
+                uint256(uint160(treasury)),
+                REACTIVE_IGNORE,
+                REACTIVE_IGNORE
+            );
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     //                              VIEW HELPERS
     // ═══════════════════════════════════════════════════════════════════════════
@@ -784,6 +849,10 @@ contract RiskGuardRSC is AbstractReactive {
     ) {
         SignalState storage sig = configs[team].signals[signalId];
         return (sig.triggeredAt, sig.basePoints, sig.decayPerDay);
+    }
+
+    function getTreasuryAddress(address team) external view returns (address) {
+        return configs[team].treasuryAddr;
     }
     // ═══════════════════════════════════════════════════════════════════════════
     //       DYNAMIC SUBSCRIPTION REGISTRATION — RNK INSTANCE ONLY
@@ -819,6 +888,9 @@ contract RiskGuardRSC is AbstractReactive {
 
         poolToTeam[poolId] = team;
         walletToTeam[team] = team;
+        if (cfg.treasuryAddr != address(0)) {
+            treasuryToTeam[cfg.treasuryAddr] = team;
+        }
 
         emit DebugSubscribeToTeamCalled(rvm_id, team, tokenAddr, poolId);
 
@@ -853,6 +925,16 @@ contract RiskGuardRSC is AbstractReactive {
             uint256(uint160(team)),
             REACTIVE_IGNORE, REACTIVE_IGNORE
         );
+
+        // ERC20 Transfer from treasury address (S5), if configured
+        if (cfg.treasuryAddr != address(0)) {
+            service.subscribe(
+                ORIGIN_CHAIN_ID, tokenAddr,
+                TRANSFER_TOPIC,
+                uint256(uint160(cfg.treasuryAddr)),
+                REACTIVE_IGNORE, REACTIVE_IGNORE
+            );
+        }
     }
 
 }

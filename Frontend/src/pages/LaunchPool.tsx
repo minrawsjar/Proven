@@ -27,6 +27,7 @@ export function LaunchPool() {
     registerVestingPosition,
     registerMilestonesOnRSC,
     addGenesisWallet,
+    setTreasuryAddressOnRSC,
     approveToken,
     initializePool,
     addLiquidity,
@@ -98,6 +99,10 @@ export function LaunchPool() {
       setFormErrors({ general: 'Invalid custom pair token address' })
       return
     }
+    if (treasuryAddress && !isValidAddress(treasuryAddress)) {
+      setFormErrors({ general: 'Invalid treasury contract address' })
+      return
+    }
     setCurrentStep(2)
     setFormErrors({})
   }
@@ -116,6 +121,10 @@ export function LaunchPool() {
     const projectToken = poolConfig!.tokenAddress as `0x${string}`
     if (pairSelection === 'Custom' && !isValidAddress(customPairTokenAddress)) {
       setTxError('Invalid custom pair token address')
+      return
+    }
+    if (treasuryAddress && !isValidAddress(treasuryAddress)) {
+      setTxError('Invalid treasury contract address')
       return
     }
 
@@ -178,6 +187,12 @@ export function LaunchPool() {
             milestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
           )
           setTxHashes(p => ({ ...p, rscRegister: r6.transactionHash }))
+
+          const treasuryAddr = (treasuryAddress && isValidAddress(treasuryAddress)
+            ? treasuryAddress
+            : ZERO_ADDRESS) as `0x${string}`
+          const r6b = await setTreasuryAddressOnRSC(address as `0x${string}`, treasuryAddr)
+          setTxHashes(p => ({ ...p, rscTreasury: r6b.transactionHash }))
         } catch (err) { console.warn('Lasna registerMilestones failed:', err) }
       }
 
@@ -485,8 +500,8 @@ export function LaunchPool() {
         {/* Treasury */}
         <div className="mb-8">
           <h3 className="font-black uppercase mb-2">Treasury Contract <span className="text-gray-400 font-normal lowercase">(optional)</span></h3>
-          <input className={inp} placeholder="0x..." value={treasuryAddress} onChange={(e) => setTreasuryAddress(e.target.value)} />
-          <p className="text-gray-400 text-xs mt-1.5 font-mono">Enables Signal S2: treasury drain monitoring</p>
+          <input className={inp} placeholder="0x..." value={treasuryAddress ?? ''} onChange={(e) => setTreasuryAddress(e.target.value.trim() ? e.target.value : null)} />
+          <p className="text-gray-400 text-xs mt-1.5 font-mono">Enables Signal S5: treasury drain monitoring</p>
         </div>
 
         {/* Summary */}
@@ -515,7 +530,7 @@ export function LaunchPool() {
             { key: 'init-pool', label: 'INITIALIZE POOL', desc: 'Create Uniswap v4 pool with VestingHook attached', chain: 'UNICHAIN', hashKeys: ['initPool'] },
             { key: 'register', label: 'REGISTER POSITION', desc: 'Register milestones on VestingHook', chain: 'UNICHAIN', hashKeys: ['register'] },
             { key: 'add-liq', label: 'ADD LIQUIDITY', desc: 'Deposit tokens → LP locked in vault via hook', chain: 'UNICHAIN', hashKeys: ['addLiq'] },
-            { key: 'rsc-register', label: 'RSC MILESTONES', desc: 'Switch to Lasna & mirror milestones on RSC', chain: 'LASNA', hashKeys: ['rscRegister'] },
+            { key: 'rsc-register', label: 'RSC MILESTONES', desc: 'Switch to Lasna, mirror milestones, and set treasury on RSC', chain: 'LASNA', hashKeys: ['rscRegister', 'rscTreasury'] },
             { key: 'rsc-wallets', label: 'RSC WALLETS', desc: 'Register genesis wallets for signal detection', chain: 'LASNA', hashKeys: [] },
           ].map((step, i) => {
             const isActive = txStep === step.key

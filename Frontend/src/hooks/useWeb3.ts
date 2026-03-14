@@ -888,6 +888,30 @@ export const useContractWrites = () => {
     [],
   )
 
+  /** Set or clear treasury contract address on RiskGuardRSC (Lasna)
+   *  Pass zero address to clear (nullable behavior).
+   */
+  const setTreasuryAddressOnRSC = useCallback(
+    async (teamAddress: `0x${string}`, treasuryAddress: `0x${string}`) => {
+      const wc = await getCoreWalletClient({ chainId: lasnaTestnet.id })
+      if (!wc) throw new Error('Wallet not connected to Lasna')
+      const pc = getCorePublicClient({ chainId: lasnaTestnet.id })
+
+      const hash = await wc.writeContract({
+        address: RISK_GUARD_RSC_ADDRESS,
+        abi: riskGuardRSCAbi,
+        functionName: 'setTreasuryAddress',
+        args: [teamAddress, treasuryAddress],
+        chain: lasnaTestnet,
+      })
+
+      const receipt = await pc.waitForTransactionReceipt({ hash })
+      await nonceSafeWait()
+      return receipt
+    },
+    [],
+  )
+
   /** Approve a token for spending by the PoolModifyLiquidityTest router */
   const approveToken = useCallback(
     async (tokenAddress: `0x${string}`, spender: `0x${string}`, amount: bigint) => {
@@ -975,6 +999,7 @@ export const useContractWrites = () => {
     registerVestingPosition,
     registerMilestonesOnRSC,
     addGenesisWallet,
+    setTreasuryAddressOnRSC,
     approveToken,
     initializePool,
     addLiquidity,

@@ -114,7 +114,7 @@ contract RiskGuardRSCTest is Test {
         rsc.react(log);
 
         assertEq(rsc.getPoolTeam(newPool), newTeam);
-        (address team, , , , , , , , , , ) = rsc.configs(newTeam);
+        (address team, , , , , , , , , , , ) = rsc.configs(newTeam);
         assertEq(team, newTeam);
     }
 

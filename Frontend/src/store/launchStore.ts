@@ -24,14 +24,14 @@ export interface LaunchState {
   poolConfig: PoolConfig | null
   milestones: Milestone[]
   additionalWallets: string[]
-  treasuryAddress: string
+  treasuryAddress: string | null
   
   setCurrentStep: (step: 1 | 2 | 3) => void
   setPoolConfig: (config: PoolConfig) => void
   setMilestones: (milestones: Milestone[]) => void
   addWallet: (wallet: string) => void
   removeWallet: (wallet: string) => void
-  setTreasuryAddress: (address: string) => void
+  setTreasuryAddress: (address: string | null) => void
   reset: () => void
 }
 
@@ -40,7 +40,7 @@ const initialState = {
   poolConfig: null,
   milestones: [],
   additionalWallets: [],
-  treasuryAddress: '',
+  treasuryAddress: null,
 }
 
 export const useLaunchStore = create<LaunchState>((set) => ({
