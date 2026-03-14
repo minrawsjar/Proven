@@ -113,12 +113,7 @@ export function InvestorDashboard() {
   const unlockedMilestoneText = unlockedMilestones.length > 0 ? unlockedMilestones.map((m) => `M${m}`).join(', ') : 'None'
   const conditionLabel = (type: number) => type === 0 ? 'TVL' : type === 1 ? 'VOLUME' : type === 2 ? 'USERS' : 'UNKNOWN'
   const formatUsdcShort = (raw: bigint) => {
-    // Backward compatibility:
-    // - Legacy positions stored TVL/VOLUME thresholds as plain USDC amounts (e.g. 1005)
-    // - New positions store thresholds scaled by 1e6 (USDC decimals)
-    const SCALE = 10n ** 6n
-    const whole = (raw % SCALE === 0n && raw / SCALE >= 10n) ? (raw / SCALE) : raw
-
+    const whole = raw / 10n ** 18n
     if (whole >= 1_000_000_000n) return `$${(Number(whole / 100_000_000n) / 10).toFixed(1)}B`
     if (whole >= 1_000_000n) return `$${(Number(whole / 100_000n) / 10).toFixed(1)}M`
     if (whole >= 1_000n) return `$${(Number(whole / 100n) / 10).toFixed(1)}K`
