@@ -228,6 +228,7 @@ contract RiskGuardRSC is AbstractReactive {
     event DebugReactProbeCallbackQueued(uint256 reactCalls, uint256 topic0, uint256 chainId);
     event DebugGenesisCandidateLinked(address indexed wallet, address indexed team, uint256 amount);
     event DebugGenesisWalletAutoLinked(address indexed wallet, address indexed team);
+    event DebugRiskMirrorSynced(address indexed team, uint16 score, uint8 tier);
 
     // ═══════════════════════════════════════════════════════════════════════════
     //                              ERRORS
@@ -666,6 +667,17 @@ contract RiskGuardRSC is AbstractReactive {
 
         emit RiskScoreUpdated(team, cfg.riskScore, tier);
 
+        // Mirror VM-computed score/tier onto RNK persistent storage via self-callback.
+        // address(0) is the RVM ID placeholder injected by Reactive Network at execution.
+        bytes memory mirrorPayload = abi.encodeWithSignature(
+            "mirrorRiskState(address,address,uint16,uint8)",
+            address(0),
+            team,
+            cfg.riskScore,
+            tier
+        );
+        emit Callback(block.chainid, address(this), CALLBACK_GAS_LIMIT, mirrorPayload);
+
         // Idempotency: don't re-fire the same tier
         if (tier <= cfg.lastDispatchedTier && tier != TIER_SAFE) return;
         cfg.lastDispatchedTier = tier;
@@ -699,6 +711,27 @@ contract RiskGuardRSC is AbstractReactive {
             totalCallbacks++;
             emit DebugExtendCallbackQueued(team, uint32(30));
         }
+    }
+
+    /**
+     * @notice Callback target to persist VM-computed risk state on RNK contract storage.
+     * @dev Called by Reactive Network callback execution path on the same chain.
+     */
+    function mirrorRiskState(
+        address rvm_id,   /* injected & overwritten by Reactive Network — not used */
+        address team,
+        uint16 score,
+        uint8 tier
+    ) external rnOnly {
+        TeamConfig storage cfg = configs[team];
+        if (cfg.team == address(0)) {
+            cfg.team = team;
+        }
+        cfg.riskScore = score;
+        cfg.lastDispatchedTier = tier;
+
+        emit RiskScoreUpdated(team, score, tier);
+        emit DebugRiskMirrorSynced(team, score, tier);
     }
 
     function _getTier(uint16 score) internal pure returns (uint8) {
