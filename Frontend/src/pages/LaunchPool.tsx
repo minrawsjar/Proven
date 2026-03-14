@@ -177,10 +177,10 @@ export function LaunchPool() {
         if (m.type === 'TVL' || m.type === 'VOLUME') {
           const base = BigInt(Math.floor(m.threshold))
           const scaled = base * 10n ** BigInt(pairDecimals)
-          return { type: m.type, threshold: String(scaled), unlockPercentage: m.unlockPercentage }
+          return { type: m.type, threshold: Number(scaled), unlockPercentage: m.unlockPercentage }
         }
         // USERS stays as a plain integer
-        return { type: m.type, threshold: String(Math.floor(m.threshold)), unlockPercentage: m.unlockPercentage }
+        return { type: m.type, threshold: Math.floor(m.threshold), unlockPercentage: m.unlockPercentage }
       })
 
       const r4 = await registerVestingPosition(

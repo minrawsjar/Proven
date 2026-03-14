@@ -88,12 +88,28 @@ export function InvestorDashboard() {
     const occurredSignalSet = new Set(occurredSignals);
     const occurredSignalText = `${occurredSignals.length > 0 ? occurredSignals.join(', ') : 'None'} | Locked milestones: ${lockedMilestones.length > 0 ? lockedMilestones.map((m) => `M${m}`).join(', ') : 'None'}`;
     const conditionLabel = (type) => type === 0 ? 'TVL' : type === 1 ? 'VOLUME' : type === 2 ? 'USERS' : 'UNKNOWN';
+    const formatUsdcShort = (raw) => {
+        const SCALE = 10n ** 6n;
+        const whole = (raw % SCALE === 0n && raw / SCALE >= 10n) ? (raw / SCALE) : raw;
+        if (whole >= 1_000_000_000n)
+            return `$${(Number(whole / 100_000_000n) / 10).toFixed(1)}B`;
+        if (whole >= 1_000_000n)
+            return `$${(Number(whole / 100_000n) / 10).toFixed(1)}M`;
+        if (whole >= 1_000n)
+            return `$${(Number(whole / 100n) / 10).toFixed(1)}K`;
+        return `$${whole.toString()}`;
+    };
+    const formatMilestoneThreshold = (conditionType, threshold) => {
+        if (conditionType === 0 || conditionType === 1)
+            return `${formatUsdcShort(threshold)} USDC`;
+        return threshold.toString();
+    };
     const milestoneCards = configuredMilestones.length === 3
         ? configuredMilestones.map((m, i) => ({
             key: i + 1,
             pct: m.unlockPct,
             done: m.complete,
-            sub: `${conditionLabel(m.conditionType)} ≥ ${m.threshold.toString()}`,
+            sub: `${conditionLabel(m.conditionType)} ≥ ${formatMilestoneThreshold(m.conditionType, m.threshold)}`,
         }))
         : [30, 70, 100].map((m, i) => ({
             key: i + 1,
