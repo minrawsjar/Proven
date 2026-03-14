@@ -49,7 +49,7 @@ export function Home() {
                 Deploy Liquidity <ArrowRight size={20} className="stroke-[3]" />
               </Link>
               <a
-                href="https://github.com/minrawsjar/Proven"
+                href="https://github.com/minrawsjar/Proven/blob/main/README.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold uppercase tracking-wide border-4 border-black dark:border-white px-8 py-4 flex items-center justify-center gap-3 transition-all duration-200 ease-in-out bg-white dark:bg-[#0A0A0A] text-black dark:text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[8px_8px_0px_0px_rgba(255,255,255,1)] active:translate-y-0 active:translate-x-0 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)]"
