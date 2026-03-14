@@ -5,8 +5,8 @@ import { createPublicClient, http, parseAbiItem, decodeFunctionData } from 'viem
 import { useVerifyStore } from '../store/verifyStore';
 import { useRSCMonitorStore } from '../store/rscMonitorStore';
 import { unichainSepolia, lasnaTestnet } from '../config/wagmi';
-import { vestingHookAbi, timeLockRSCAbi, erc20Abi, poolManagerAbi, poolModifyLiquidityTestAbi } from '../config/contracts';
-import { VESTING_HOOK_ADDRESS, CALLBACK_RECEIVER_ADDRESS, TIMELOCK_RSC_ADDRESS, LASNA_RPC, UNICHAIN_RPC, CONDITION_TYPE_MAP, POOL_MANAGER_ADDRESS, POOL_MODIFY_LIQUIDITY_TEST_ADDRESS, } from '../config/constants';
+import { vestingHookAbi, riskGuardRSCAbi, erc20Abi, poolManagerAbi, poolModifyLiquidityTestAbi } from '../config/contracts';
+import { VESTING_HOOK_ADDRESS, CALLBACK_RECEIVER_ADDRESS, RISK_GUARD_RSC_ADDRESS, LASNA_RPC, UNICHAIN_RPC, CONDITION_TYPE_MAP, POOL_MANAGER_ADDRESS, POOL_MODIFY_LIQUIDITY_TEST_ADDRESS, } from '../config/constants';
 /* ═══════════════════════════════════════════════════════════════════════════════
  *  1. Wallet connection helper
  * ═══════════════════════════════════════════════════════════════════════════════ */
@@ -246,14 +246,14 @@ export const useRiskScore = (teamAddress) => {
             try {
                 const [compositeScore, dispatchedTier] = await Promise.all([
                     lasnaClient.readContract({
-                        address: TIMELOCK_RSC_ADDRESS,
-                        abi: timeLockRSCAbi,
+                        address: RISK_GUARD_RSC_ADDRESS,
+                        abi: riskGuardRSCAbi,
                         functionName: 'getRiskScore',
                         args: [addr],
                     }),
                     lasnaClient.readContract({
-                        address: TIMELOCK_RSC_ADDRESS,
-                        abi: timeLockRSCAbi,
+                        address: RISK_GUARD_RSC_ADDRESS,
+                        abi: riskGuardRSCAbi,
                         functionName: 'getLastDispatchedTier',
                         args: [addr],
                     }),
@@ -358,7 +358,7 @@ export const useRugSignals = (teamAddress) => {
                 const currentRscBlock = await lasnaClient.getBlockNumber();
                 const fromRscBlock = currentRscBlock > 300000n ? currentRscBlock - 300000n : 0n;
                 const signalLogs = await lasnaClient.getLogs({
-                    address: TIMELOCK_RSC_ADDRESS,
+                    address: RISK_GUARD_RSC_ADDRESS,
                     event: signalTriggeredEvent,
                     args: { team: addr },
                     fromBlock: fromRscBlock,
@@ -586,7 +586,7 @@ export const useRSCEventPolling = (projectAddress, pollInterval = 15000) => {
                 if (fromBlock === 0n)
                     fromBlock = currentBlock > 5000n ? currentBlock - 5000n : 0n;
                 const logs = await lasnaClient.getLogs({
-                    address: TIMELOCK_RSC_ADDRESS,
+                    address: RISK_GUARD_RSC_ADDRESS,
                     fromBlock,
                     toBlock: currentBlock,
                 });
@@ -664,7 +664,7 @@ export const useContractWrites = () => {
         await nonceSafeWait();
         return receipt;
     }, [walletClient, publicClient]);
-    /** Register milestones on TimeLockRSC (Lasna Testnet)
+    /** Register milestones on RiskGuardRSC (Lasna Testnet)
      *  IMPORTANT: Caller must switch to Lasna chain first via switchToLasna().
      *  This function fetches a fresh wallet client for the Lasna chain.
      */
@@ -683,8 +683,8 @@ export const useContractWrites = () => {
             unlockPcts[i] = m.unlockPercentage;
         });
         const hash = await wc.writeContract({
-            address: TIMELOCK_RSC_ADDRESS,
-            abi: timeLockRSCAbi,
+            address: RISK_GUARD_RSC_ADDRESS,
+            abi: riskGuardRSCAbi,
             functionName: 'registerMilestones',
             args: [poolId, teamAddress, conditionTypes, thresholds, unlockPcts],
             chain: lasnaTestnet,
@@ -693,7 +693,7 @@ export const useContractWrites = () => {
         await nonceSafeWait();
         return receipt;
     }, []);
-    /** Add genesis wallet on TimeLockRSC (Lasna)
+    /** Add genesis wallet on RiskGuardRSC (Lasna)
      *  IMPORTANT: Caller must switch to Lasna chain first via switchToLasna().
      */
     const addGenesisWallet = useCallback(async (teamAddress, walletAddress) => {
@@ -702,8 +702,8 @@ export const useContractWrites = () => {
             throw new Error('Wallet not connected to Lasna');
         const pc = getCorePublicClient({ chainId: lasnaTestnet.id });
         const hash = await wc.writeContract({
-            address: TIMELOCK_RSC_ADDRESS,
-            abi: timeLockRSCAbi,
+            address: RISK_GUARD_RSC_ADDRESS,
+            abi: riskGuardRSCAbi,
             functionName: 'addGenesisWallet',
             args: [teamAddress, walletAddress],
             chain: lasnaTestnet,

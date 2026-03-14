@@ -28,7 +28,7 @@ export const VAULT_MANAGER_ADDRESS = (import.meta.env.VITE_VAULT_ADDRESS ?? '0x0
 export const CALLBACK_RECEIVER_ADDRESS = (import.meta.env.VITE_CALLBACK_ADDRESS ?? '0x0000000000000000000000000000000000000000') as `0x${string}`
 
 /* ─── Proven Contracts (Lasna Testnet – fill after deployment) ─── */
-export const TIMELOCK_RSC_ADDRESS = (import.meta.env.VITE_RSC_ADDRESS ?? '0x0000000000000000000000000000000000000000') as `0x${string}`
+export const RISK_GUARD_RSC_ADDRESS = (import.meta.env.VITE_RSC_ADDRESS ?? '0x0000000000000000000000000000000000000000') as `0x${string}`
 
 /* ─── RPC Endpoints (for viem publicClient) ─── */
 export const UNICHAIN_RPC = 'https://sepolia.unichain.org'

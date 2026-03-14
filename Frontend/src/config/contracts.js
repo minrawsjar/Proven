@@ -177,8 +177,8 @@ export const vestingHookAbi = [
         ],
     },
 ];
-/* ─── TimeLockRSC (Lasna Testnet) ─── */
-export const timeLockRSCAbi = [
+/* ─── RiskGuardRSC (Lasna Testnet) ─── */
+export const riskGuardRSCAbi = [
     // ── writes (called by team during launch) ──
     {
         type: 'function',

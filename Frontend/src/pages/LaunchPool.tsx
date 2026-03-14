@@ -3,7 +3,7 @@ import { useLaunchStore } from '../store/launchStore'
 import { useWallet, useTokenInfo, useContractWrites } from '../hooks/useWeb3'
 import { Settings, Target, PenLine, AlertTriangle, Lightbulb, Eye, Lock, CheckCircle, Loader2 } from 'lucide-react'
 import { isValidAddress } from '../utils/format'
-import { VESTING_HOOK_ADDRESS, TIMELOCK_RSC_ADDRESS, POOL_MODIFY_LIQUIDITY_TEST_ADDRESS } from '../config/constants'
+import { VESTING_HOOK_ADDRESS, RISK_GUARD_RSC_ADDRESS, POOL_MODIFY_LIQUIDITY_TEST_ADDRESS } from '../config/constants'
 import { buildPoolKey, computePoolId, computeSqrtPriceX96, fullRangeTicks, sortTokens } from '../utils/pool'
 import { parseUnits } from 'viem'
 
@@ -138,7 +138,7 @@ export function LaunchPool() {
       setTxHashes(p => ({ ...p, addLiq: r5.transactionHash }))
 
       setTxStep('rsc-register')
-      if (TIMELOCK_RSC_ADDRESS !== '0x0000000000000000000000000000000000000000') {
+      if (RISK_GUARD_RSC_ADDRESS !== '0x0000000000000000000000000000000000000000') {
         try {
           await switchToLasna()
           const r6 = await registerMilestonesOnRSC(

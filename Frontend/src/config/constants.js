@@ -23,7 +23,7 @@ export const VESTING_HOOK_ADDRESS = (import.meta.env.VITE_HOOK_ADDRESS ?? '0x000
 export const VAULT_MANAGER_ADDRESS = (import.meta.env.VITE_VAULT_ADDRESS ?? '0x0000000000000000000000000000000000000000');
 export const CALLBACK_RECEIVER_ADDRESS = (import.meta.env.VITE_CALLBACK_ADDRESS ?? '0x0000000000000000000000000000000000000000');
 /* ─── Proven Contracts (Lasna Testnet – fill after deployment) ─── */
-export const TIMELOCK_RSC_ADDRESS = (import.meta.env.VITE_RSC_ADDRESS ?? '0x0000000000000000000000000000000000000000');
+export const RISK_GUARD_RSC_ADDRESS = (import.meta.env.VITE_RSC_ADDRESS ?? '0x0000000000000000000000000000000000000000');
 /* ─── RPC Endpoints (for viem publicClient) ─── */
 export const UNICHAIN_RPC = 'https://sepolia.unichain.org';
 export const LASNA_RPC = 'https://lasna-rpc.rnk.dev';
@@ -36,7 +36,7 @@ export const CONDITION_TYPE_MAP = {
     VOLUME: 1,
     USERS: 2,
 };
-/* ─── Signal labels (S1-S5 from TimeLockRSC) ─── */
+/* ─── Signal labels (S1-S5 from RiskGuardRSC) ─── */
 export const SIGNAL_LABELS = {
     0: 'Large Holder Outflow',
     1: 'Treasury Drain',

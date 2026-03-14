@@ -3,7 +3,7 @@ import { createPublicClient, http, type Log, keccak256, toHex, decodeAbiParamete
 import { useRSCMonitorStore } from '../store/rscMonitorStore.ts'
 import {
   VESTING_HOOK_ADDRESS,
-  TIMELOCK_RSC_ADDRESS,
+  RISK_GUARD_RSC_ADDRESS,
   UNICHAIN_RPC,
   LASNA_RPC,
   UNICHAIN_EXPLORER,
@@ -154,7 +154,7 @@ export function RSCActivityMonitor() {
         if (fromBlock === 0n) fromBlock = currentBlock > MONITOR_LOOKBACK_BLOCKS ? currentBlock - MONITOR_LOOKBACK_BLOCKS : 0n
 
         const logs = await lasnaClient.getLogs({
-          address: TIMELOCK_RSC_ADDRESS,
+          address: RISK_GUARD_RSC_ADDRESS,
           fromBlock,
           toBlock: currentBlock,
         })
@@ -210,12 +210,12 @@ export function RSCActivityMonitor() {
       try {
         const [reactCalls, callbacks] = await Promise.all([
           lasnaClient.readContract({
-            address: TIMELOCK_RSC_ADDRESS,
+            address: RISK_GUARD_RSC_ADDRESS,
             abi: riskGuardRSCAbi,
             functionName: 'totalReactCalls',
           }),
           lasnaClient.readContract({
-            address: TIMELOCK_RSC_ADDRESS,
+            address: RISK_GUARD_RSC_ADDRESS,
             abi: riskGuardRSCAbi,
             functionName: 'totalCallbacks',
           }),
@@ -430,11 +430,11 @@ export function RSCActivityMonitor() {
 
         {/* Architecture Note */}
         <div className="mt-8 p-5 border-4 border-black dark:border-white bg-gray-100 dark:bg-[#111] font-mono text-xs text-gray-600 dark:text-gray-400">
-          <span className="font-black text-black dark:text-white font-sans uppercase">How it works:</span> VestingHook events on Unichain (left) are picked up by the Reactive Network. The RSC evaluates 5 signals, computes a composite risk score, and dispatches callbacks (right) — either unlocking milestones or extending timelocks.
+          <span className="font-black text-black dark:text-white font-sans uppercase">How it works:</span> VestingHook events on Unichain (left) are picked up by the Reactive Network. The RSC evaluates 5 signals, computes a composite risk score, and dispatches callbacks (right). It either unlocks milestones or extends lock windows.
         </div>
         {relayStatus === 'waiting' && (
           <div className="mt-4 p-5 border-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 font-mono text-xs text-yellow-800 dark:text-yellow-300">
-            <span className="font-black font-sans uppercase">⏳ Relay Status:</span> The Reactive Network relay has not yet delivered events to the RSC contract on Lasna (totalReactCalls = 0). Events are confirmed on Unichain — the relay will process them when the testnet infrastructure catches up. RSC contract: {formatAddress(TIMELOCK_RSC_ADDRESS as `0x${string}`)}
+            <span className="font-black font-sans uppercase">⏳ Relay Status:</span> The Reactive Network relay has not yet delivered events to the RSC contract on Lasna (totalReactCalls = 0). Events are confirmed on Unichain. The relay will process them when the testnet infrastructure catches up. RSC contract: {formatAddress(RISK_GUARD_RSC_ADDRESS as `0x${string}`)}
           </div>
         )}
       </div>

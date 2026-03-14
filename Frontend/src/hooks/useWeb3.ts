@@ -9,7 +9,7 @@ import { vestingHookAbi, riskGuardRSCAbi, erc20Abi, poolManagerAbi, poolModifyLi
 import {
   VESTING_HOOK_ADDRESS,
   CALLBACK_RECEIVER_ADDRESS,
-  TIMELOCK_RSC_ADDRESS,
+  RISK_GUARD_RSC_ADDRESS,
   LASNA_RPC,
   UNICHAIN_RPC,
   CONDITION_TYPE_MAP,
@@ -341,13 +341,13 @@ export const useRiskScore = (teamAddress?: string) => {
       try {
         const [compositeScore, dispatchedTier] = await Promise.all([
           lasnaClient.readContract({
-            address: TIMELOCK_RSC_ADDRESS,
+            address: RISK_GUARD_RSC_ADDRESS,
             abi: riskGuardRSCAbi,
             functionName: 'getRiskScore',
             args: [addr],
           }),
           lasnaClient.readContract({
-            address: TIMELOCK_RSC_ADDRESS,
+            address: RISK_GUARD_RSC_ADDRESS,
             abi: riskGuardRSCAbi,
             functionName: 'getLastDispatchedTier',
             args: [addr],
@@ -474,7 +474,7 @@ export const useRugSignals = (teamAddress?: string) => {
         const fromRscBlock = currentRscBlock > 300_000n ? currentRscBlock - 300_000n : 0n
 
         const signalLogs = await lasnaClient.getLogs({
-          address: TIMELOCK_RSC_ADDRESS,
+          address: RISK_GUARD_RSC_ADDRESS,
           event: signalTriggeredEvent,
           args: { team: addr },
           fromBlock: fromRscBlock,
@@ -725,7 +725,7 @@ export const useRSCEventPolling = (projectAddress?: string, pollInterval = 15_00
         if (fromBlock === 0n) fromBlock = currentBlock > 5000n ? currentBlock - 5000n : 0n
 
         const logs = await lasnaClient.getLogs({
-          address: TIMELOCK_RSC_ADDRESS,
+          address: RISK_GUARD_RSC_ADDRESS,
           fromBlock,
           toBlock: currentBlock,
         })
@@ -850,7 +850,7 @@ export const useContractWrites = () => {
       })
 
       const hash = await wc.writeContract({
-        address: TIMELOCK_RSC_ADDRESS,
+        address: RISK_GUARD_RSC_ADDRESS,
         abi: riskGuardRSCAbi,
         functionName: 'registerMilestones',
         args: [poolId, teamAddress, conditionTypes, thresholds, unlockPcts],
@@ -874,7 +874,7 @@ export const useContractWrites = () => {
       const pc = getCorePublicClient({ chainId: lasnaTestnet.id })
 
       const hash = await wc.writeContract({
-        address: TIMELOCK_RSC_ADDRESS,
+        address: RISK_GUARD_RSC_ADDRESS,
         abi: riskGuardRSCAbi,
         functionName: 'addGenesisWallet',
         args: [teamAddress, walletAddress],

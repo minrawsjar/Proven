@@ -268,7 +268,7 @@ export function Home() {
               <div className="p-8 space-y-8">
                 <div>
                   <h4 className="font-bold text-xl mb-2 flex items-center gap-2">
-                    <span className="bg-black text-white px-2 border-2 border-black dark:border-white">03</span> TIMELOCK RSC
+                    <span className="bg-black text-white px-2 border-2 border-black dark:border-white">03</span> RISKGUARD RSC
                   </h4>
                   <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                     The autonomous monitor. Subscribes to VestingHook events

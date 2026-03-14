@@ -2,8 +2,8 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useEffect, useRef } from 'react';
 import { createPublicClient, http, keccak256, toHex, decodeAbiParameters, formatEther } from 'viem';
 import { useRSCMonitorStore } from '../store/rscMonitorStore';
-import { VESTING_HOOK_ADDRESS, TIMELOCK_RSC_ADDRESS, UNICHAIN_RPC, LASNA_RPC, UNICHAIN_EXPLORER, LASNA_EXPLORER, } from '../config/constants';
-import { vestingHookAbi, timeLockRSCAbi } from '../config/contracts';
+import { VESTING_HOOK_ADDRESS, RISK_GUARD_RSC_ADDRESS, UNICHAIN_RPC, LASNA_RPC, UNICHAIN_EXPLORER, LASNA_EXPLORER, } from '../config/constants';
+import { vestingHookAbi, riskGuardRSCAbi } from '../config/contracts';
 import { formatAddress } from '../utils/format';
 import { Radio, Zap, ArrowRight, Pause, Play, ExternalLink, Layers, AlertTriangle, GitBranch, Wifi, WifiOff } from 'lucide-react';
 /* ── Viem clients for direct polling ── */
@@ -13,7 +13,7 @@ const MONITOR_LOOKBACK_BLOCKS = 5000000n;
 /* ── Build a proper topic0 → event name map using keccak256 of event signatures ── */
 const buildTopicMap = () => {
     const map = {};
-    const allAbi = [...vestingHookAbi, ...timeLockRSCAbi];
+    const allAbi = [...vestingHookAbi, ...riskGuardRSCAbi];
     for (const item of allAbi) {
         if (item.type !== 'event')
             continue;
@@ -129,7 +129,7 @@ export function RSCActivityMonitor() {
                 if (fromBlock === 0n)
                     fromBlock = currentBlock > MONITOR_LOOKBACK_BLOCKS ? currentBlock - MONITOR_LOOKBACK_BLOCKS : 0n;
                 const logs = await lasnaClient.getLogs({
-                    address: TIMELOCK_RSC_ADDRESS,
+                    address: RISK_GUARD_RSC_ADDRESS,
                     fromBlock,
                     toBlock: currentBlock,
                 });
@@ -184,13 +184,13 @@ export function RSCActivityMonitor() {
             try {
                 const [reactCalls, callbacks] = await Promise.all([
                     lasnaClient.readContract({
-                        address: TIMELOCK_RSC_ADDRESS,
-                        abi: timeLockRSCAbi,
+                        address: RISK_GUARD_RSC_ADDRESS,
+                        abi: riskGuardRSCAbi,
                         functionName: 'totalReactCalls',
                     }),
                     lasnaClient.readContract({
-                        address: TIMELOCK_RSC_ADDRESS,
-                        abi: timeLockRSCAbi,
+                        address: RISK_GUARD_RSC_ADDRESS,
+                        abi: riskGuardRSCAbi,
                         functionName: 'totalCallbacks',
                     }),
                 ]);
