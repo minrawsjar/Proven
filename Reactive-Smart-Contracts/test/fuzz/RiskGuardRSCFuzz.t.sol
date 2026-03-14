@@ -2,11 +2,11 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {TimeLockRSC} from "../../src/TimeLockRSC.sol";
+import {RiskGuardRSC} from "../../src/RiskGuardRSC.sol";
 import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
 
-contract TimeLockRSCFuzzTest is Test {
-    TimeLockRSC internal rsc;
+contract RiskGuardRSCFuzzTest is Test {
+    RiskGuardRSC internal rsc;
 
     uint256 constant ORIGIN_CHAIN = 11155111;
     uint256 constant CALLBACK_CHAIN = 11155111;
@@ -15,7 +15,7 @@ contract TimeLockRSCFuzzTest is Test {
     bytes32 constant POOL_ID = bytes32(uint256(0x1234));
 
     function setUp() public {
-        rsc = new TimeLockRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
+        rsc = new RiskGuardRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
 
         // High thresholds to avoid milestone callbacks interfering with signal assertions
         rsc.registerMilestones(

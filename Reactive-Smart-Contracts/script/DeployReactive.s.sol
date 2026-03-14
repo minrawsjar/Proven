@@ -2,11 +2,11 @@
 pragma solidity ^0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
-import {TimeLockRSC} from "../src/TimeLockRSC.sol";
+import {RiskGuardRSC} from "../src/RiskGuardRSC.sol";
 
 /**
  * @title DeployReactiveScript
- * @notice Deploys TimeLockRSC on the Reactive Network (Lasna testnet, chain 5318007).
+ * @notice Deploys RiskGuardRSC on the Reactive Network (Lasna testnet, chain 5318007).
  *         Run this AFTER deploying ProvenCallback on the origin chain.
  *
  * Usage:
@@ -23,7 +23,7 @@ contract DeployReactiveScript is Script {
         address hookAddr        = vm.envAddress("VESTING_HOOK_ADDR");
         address callbackProxy   = vm.envAddress("PROVEN_CALLBACK_ADDR");
 
-        console.log("--- Deploying TimeLockRSC on Lasna ---");
+        console.log("--- Deploying RiskGuardRSC on Lasna ---");
         console.log("Origin Chain ID:  ", originChainId);
         console.log("Callback Chain ID:", callbackChainId);
         console.log("VestingHook:      ", hookAddr);
@@ -31,7 +31,7 @@ contract DeployReactiveScript is Script {
 
         vm.startBroadcast();
 
-        TimeLockRSC rsc = new TimeLockRSC{value: 2 ether}(
+        RiskGuardRSC rsc = new RiskGuardRSC{value: 2 ether}(
             originChainId,
             callbackChainId,
             hookAddr,
@@ -40,7 +40,7 @@ contract DeployReactiveScript is Script {
 
         vm.stopBroadcast();
 
-        console.log("TimeLockRSC deployed at:", address(rsc));
+        console.log("RiskGuardRSC deployed at:", address(rsc));
         console.log("-------------------------------");
     }
 }

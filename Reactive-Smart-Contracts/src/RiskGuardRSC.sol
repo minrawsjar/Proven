@@ -5,7 +5,7 @@ import {AbstractReactive} from "reactive-lib/abstract-base/AbstractReactive.sol"
 import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
 
 /**
- * @title TimeLockRSC
+ * @title RiskGuardRSC
  * @author Proven Protocol
  * @notice Reactive Smart Contract deployed on the Reactive Network Lasna testnet.
  *         RSC deployed once. Never redeployed. Handles unlimited teams autonomously.
@@ -20,7 +20,7 @@ import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
  *   PERMANENT (constructor): PositionRegistered → bootstraps all dynamic subscriptions
  *   DYNAMIC (per team): PoolMetricsUpdated, CrashDetected, Transfer (deployer + genesis wallets)
  */
-contract TimeLockRSC is AbstractReactive {
+contract RiskGuardRSC is AbstractReactive {
     // ═══════════════════════════════════════════════════════════════════════════
     //                        EVENT TOPIC SIGNATURES
     // ═══════════════════════════════════════════════════════════════════════════

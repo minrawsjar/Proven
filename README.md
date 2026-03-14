@@ -2,7 +2,7 @@
   <h1 align="center">Proven Protocol</h1>
   <p align="center"><strong>Performance-Vested Liquidity for Token Launches</strong></p>
   <p align="center">
-    Lock LP tokens in a smart vault. They unlock only when real on-chain milestones are hit — TVL, volume, users. Verified autonomously by Reactive Smart Contracts.
+    Lock LP tokens in a smart vault. They unlock only when real on chain milestones are hit for TVL, volume, and users. Verification is autonomous through Reactive Smart Contracts.
   </p>
 </p>
 
@@ -19,19 +19,19 @@
 
 ## The Problem
 
-In 2021, the $SQUID token rug-pulled $2.1M from 40,000 investors. The LP was "locked" with a 7-day time-lock. On Day 7, the team removed 100% of liquidity in a single transaction. Investors held worthless tokens. BBC reported on the scam.
+In 2021, the $SQUID token executed a rug pull of $2.1M from 40,000 investors. The LP was "locked" with a 7 day time lock. On day 7, the team removed 100% of liquidity in a single transaction. Investors held worthless tokens.
 
-**Time-locks don't work.** They only delay the rug — they don't prevent it.
+**Time locks do not work.** They only delay the rug. They do not prevent it.
 
 ## The Solution
 
-Proven replaces time-locks with **milestone-vested liquidity**:
+Proven replaces time locks with **milestone based vesting liquidity**:
 
-- LP tokens are locked in a vault with **on-chain milestones** (TVL targets, volume thresholds, user counts)
+- LP tokens are locked in a vault with **on chain milestones** (TVL targets, volume thresholds, and user counts)
 - A **Reactive Smart Contract** on the Reactive Network autonomously monitors 5 rug signals every block
-- Milestones met → LP unlocks progressively
+- When milestones are met → LP unlocks progressively
 - Rug signals detected → lock **extends automatically** (Rage Lock)
-- No bots, no multisigs, no human intervention — fully trustless
+- No bots, no multisigs, and no human intervention. The system is fully trustless.
 
 > **Proven doesn't promise investors will make money. It promises the founder can't steal theirs.**
 
@@ -44,10 +44,10 @@ Proven replaces time-locks with **milestone-vested liquidity**:
 ┌─────────────────────────────────┐           ┌─────────────────────────────────┐
 │                                 │           │                                 │
 │  ERC-20 Token (founder deploys) │           │                                 │
-│         │                       │  events   │   ProvenReactive.sol            │
-│  Uniswap v4 Pool + ProvenHook  │──────────▶│                                 │
-│         │                       │           │   • Subscribes to pool events   │
-│  ProvenVault (holds locked LP)  │◀──────────│   • Tracks TVL, volume, users   │
+│         │                       │  events   │   RiskGuardRSC.sol              │
+│  Uniswap v4 Pool + ProvenHook   │──────────▶│                                 │
+│                                 │           │   • Subscribes to pool events.  │
+│  ProvenVault (holds locked LP)  │◀──────────│   • Tracks TVL,volume, users    │
 │         │                       │ callbacks │   • Scores 5 rug signals        │
 │  ProvenCallback (receives CBs)  │           │   • Emits milestone/rage-lock   │
 │  → unlockMilestone()            │           │     callbacks                   │
@@ -61,8 +61,7 @@ Proven replaces time-locks with **milestone-vested liquidity**:
               │
               ▼
       Frontend (React + Vite)
-      reads on-chain state
-      shows dashboards to investors
+      reads on chain state
 ```
 
 ### Chain Details
@@ -83,33 +82,33 @@ Proven replaces time-locks with **milestone-vested liquidity**:
 
 ## How It Works
 
-### Phase 1 — Founder Launches a Pool
+### Phase 1: Founder Launches a Pool
 
 1. Founder deploys an ERC-20 token on Unichain Sepolia
 2. Through the Proven frontend, they create a Uniswap v4 pool with the **ProvenHook** attached
-3. LP tokens are deposited into the **ProvenVault** — they're now **locked**
+3. LP tokens are deposited into the **ProvenVault**. They are now **locked**.
 4. Founder defines milestones (e.g., TVL $1M → 25%, Volume $5M → 50%, 5K users → 25%)
 5. The hook emits a `PoolRegistered` event
 
-### Phase 2 — Reactive Contract Starts Watching
+### Phase 2: Reactive Contract Starts Watching
 
-The **ProvenReactive** contract on Lasna has subscriptions that tell the Reactive Network:
+The **RiskGuardRSC** contract on Lasna has subscriptions that tell the Reactive Network:
 
 > *"Notify me whenever these events happen on Unichain Sepolia chain 1301."*
 
 It subscribes to: `PoolMetricsUpdated`, `Transfer`, `Swap`, `AddLiquidity`, `RemoveLiquidity`
 
-### Phase 3 — Continuous Monitoring
+### Phase 3: Continuous Monitoring
 
 Every time a relevant event occurs on Unichain Sepolia:
 
-1. The Reactive Network delivers the event to `ProvenReactive.react()`
+1. The Reactive Network delivers the event to `RiskGuardRSC.react()`
 2. The reactive contract decodes the event data
 3. It updates internal state (TVL, volume, user count)
 4. It checks milestone thresholds
 5. It evaluates 5 rug signals and computes a composite risk score (0–100)
 
-### Phase 4a — Milestone Hit (Happy Path)
+### Phase 4a: Milestone Hit (Happy Path)
 
 When a milestone threshold is met:
 
@@ -121,7 +120,7 @@ react() detects TVL >= $1M
   → ProvenVault releases 25% of founder's LP
 ```
 
-### Phase 4b — Rug Signals Detected (Protection Path)
+### Phase 4b: Rug Signals Detected (Protection Path)
 
 When suspicious activity is detected:
 
@@ -135,15 +134,15 @@ react() detects composite risk score > 50
 
 ---
 
-## The 5 Rug Signals — Deep Dive
+## The 5 Rug Signals: Deep Dive
 
-The reactive contract evaluates 5 on-chain signals every time a relevant event is delivered. Each signal independently scores between 0 and 20 based on severity. The scores are summed into a **composite risk score** (0–100) that determines what action the RSC takes.
+The reactive contract evaluates 5 on chain signals every time a relevant event is delivered. Each signal independently scores between 0 and 20 based on severity. The scores are summed into a **composite risk score** (0 to 100) that determines what action the RSC takes.
 
 ### Signal S1: Large Holder Outflow
 
 **What it detects:** A large percentage of the token supply moving out of known wallets (founder, team, advisors) within a short window.
 
-**Why it matters:** Before a rug pull, the team typically moves tokens to fresh wallets that aren't being watched. This is the "preparation phase" — they're staging tokens for a coordinated dump.
+**Why it matters:** Before a rug pull, the team typically moves tokens to fresh wallets that are not being watched. This is the preparation phase. They are staging tokens for a coordinated dump.
 
 **How it's calculated:**
 
@@ -157,8 +156,8 @@ Scoring:
   if outflowPercentage <= 5%   → score = 0   (normal activity)
   if outflowPercentage <= 10%  → score = 5   (minor movement)
   if outflowPercentage <= 15%  → score = 10  (notable movement)
-  if outflowPercentage <= 25%  → score = 15  (significant — elevated risk)
-  if outflowPercentage > 25%   → score = 20  (critical — likely pre-rug staging)
+  if outflowPercentage <= 25%  → score = 15  (significant. Elevated risk)
+  if outflowPercentage > 25%   → score = 20  (critical. Likely staging before a rug)
 ```
 
 **Events consumed:** `Transfer(address indexed from, address indexed to, uint256 value)`
@@ -171,7 +170,7 @@ Scoring:
 
 **What it detects:** The project's treasury wallet balance dropping significantly.
 
-**Why it matters:** Many projects have a treasury or marketing wallet. Before rugging, teams drain this wallet — converting to ETH/stables and bridging out. A sudden drop in treasury balance is a strong leading indicator.
+**Why it matters:** Many projects have a treasury or marketing wallet. Before rugging, teams drain this wallet. They convert to ETH or stables and bridge out. A sudden drop in treasury balance is a strong leading indicator.
 
 **How it's calculated:**
 
@@ -186,7 +185,7 @@ Scoring:
   if dropPercentage <= 10%  → score = 4   (minor draw)
   if dropPercentage <= 20%  → score = 8   (noticeable)
   if dropPercentage <= 40%  → score = 14  (alarming)
-  if dropPercentage > 40%   → score = 20  (critical — treasury being emptied)
+  if dropPercentage > 40%   → score = 20  (critical. Treasury is being emptied)
 ```
 
 **Events consumed:** `Transfer` events where `from` matches the registered treasury address.
@@ -209,7 +208,7 @@ Inputs:
 
 Scoring:
   if no attempt         → score = 0
-  if attempt detected   → score = 20  (maximum — this is a direct rug signal)
+  if attempt detected   → score = 20  (maximum. This is a direct rug signal)
 ```
 
 **Events consumed:** `RemoveLiquidity` or the Uniswap v4 equivalent `ModifyLiquidity` with negative delta.
@@ -235,12 +234,12 @@ Scoring:
   if top3HolderPercentage <= 40%  → score = 4   (slightly concentrated)
   if top3HolderPercentage <= 50%  → score = 8   (moderately concentrated)
   if top3HolderPercentage <= 60%  → score = 14  (highly concentrated)
-  if top3HolderPercentage > 60%   → score = 20  (critical — whale dominated)
+  if top3HolderPercentage > 60%   → score = 20  (critical. Whale dominated)
 ```
 
 **Events consumed:** `Transfer` events. The RSC tracks the top holder balances by processing every transfer and maintaining a sorted balance map in its ReactVM state.
 
-**Implementation note:** On-chain, we can't query "top 3 holders" directly. Instead, the reactive contract maintains a mapping of `address → balance` for significant holders (>1% of supply) and updates it on every `Transfer` event. This is possible because RSCs are stateful — they have persistent storage in the ReactVM.
+**Implementation note:** On chain, we cannot query "top 3 holders" directly. Instead, the reactive contract maintains a mapping of `address → balance` for significant holders (>1% of supply) and updates it on every `Transfer` event. This is possible because RSCs are stateful. They have persistent storage in the ReactVM.
 
 ---
 
@@ -248,7 +247,7 @@ Scoring:
 
 **What it detects:** The number of unique token holders decreasing.
 
-**Why it matters:** A healthy project gains users over time. If the unique holder count is *dropping*, people are selling and leaving. A rapid decrease (>10%) in a short period signals panic selling or a coordinated exit — often triggered by insider knowledge of an upcoming rug.
+**Why it matters:** A healthy project gains users over time. If the unique holder count is *dropping*, people are selling and leaving. A rapid decrease (>10%) in a short period signals panic selling or a coordinated exit. This is often triggered by insider knowledge of an upcoming rug.
 
 **How it's calculated:**
 
@@ -264,7 +263,7 @@ Scoring:
   if dropPercentage <= 5%    → score = 4   (mild concern)
   if dropPercentage <= 10%   → score = 10  (significant exodus)
   if dropPercentage <= 20%   → score = 16  (mass exit)
-  if dropPercentage > 20%    → score = 20  (critical — project collapsing)
+  if dropPercentage > 20%    → score = 20  (critical. Project collapsing)
 ```
 
 **Events consumed:** `Transfer` events. The RSC increments the holder count when a new address receives tokens (balance goes from 0 to >0) and decrements when an address balance drops to 0.
@@ -293,13 +292,13 @@ Maximum possible: 100 (all signals at maximum severity)
 
 ### Score Persistence and Decay
 
-- Scores are **cumulative within a rolling window** — they don't reset to zero after each event
+- Scores are **cumulative within a rolling window**. They do not reset to zero after each event.
 - If no suspicious activity occurs for 7 days, signal scores **decay by 25%** per week
 - This prevents a single past event from permanently branding a project
 - If activity resumes (new signals fire), the score climbs again immediately
-- Decay only applies to S1, S2, S4, S5 — **S3 (LP withdrawal attempt) does not decay** because attempting to remove liquidity is always a deliberate action
+- Decay only applies to S1, S2, S4, and S5. **S3 (LP withdrawal attempt) does not decay** because attempting to remove liquidity is always a deliberate action.
 
-### Real-World Example: How Signals Combine
+### Real World Example: How Signals Combine
 
 **Scenario: A founder prepares to rug over 3 days**
 
@@ -307,7 +306,7 @@ Maximum possible: 100 (all signals at maximum severity)
 Day 1:
   Founder moves 20% of tokens to a fresh wallet
   → S1 fires: outflow 20% → score 15
-  → Composite: 15 (Healthy — no action yet, but RSC is tracking)
+  → Composite: 15 (Healthy. No action yet, but RSC is tracking)
 
 Day 2:
   Treasury drops 35% (founder converting to ETH)
@@ -319,7 +318,7 @@ Day 2:
 Day 3:
   Top 3 wallets now hold 55% of supply (concentration increasing)
   → S4 fires: concentration 55% → score 14
-  → Composite: 15 + 14 + 14 = 43 (Watch zone — getting close)
+  → Composite: 15 + 14 + 14 = 43 (Watch zone. Getting close)
   → RSC dispatches updateRiskScore(43) callback
 
   Then: Founder attempts removeLiquidity()
@@ -345,7 +344,7 @@ Day 3 result:
 
 ---
 
-## Milestone System — Deep Dive
+## Milestone System: Deep Dive
 
 ### How Milestones Work
 
@@ -353,7 +352,7 @@ When a founder creates a pool via Proven, they define up to 3 milestones. Each m
 
 | Field | Description | Example |
 |---|---|---|
-| **Condition** | What on-chain metric to track | TVL, Trading Volume, Unique Users |
+| **Condition** | What on chain metric to track | TVL, Trading Volume, Unique Users |
 | **Threshold** | The target value | $1,000,000 |
 | **Unlock %** | How much LP to release when met | 25% |
 
@@ -361,9 +360,9 @@ The total unlock percentages across all milestones must equal exactly **100%**.
 
 ### How Milestones Are Verified
 
-Milestones are **not** self-reported by the founder. They are verified by the RSC reading real on-chain data:
+Milestones are **not** reported by the founder. They are verified by the RSC reading real on chain data:
 
-| Milestone Type | On-Chain Source | How RSC Reads It |
+| Milestone Type | On Chain Source | How RSC Reads It |
 |---|---|---|
 | **TVL** | Token + pair token balance in the Uniswap pool | `PoolMetricsUpdated` event from ProvenHook, which reads pool reserves |
 | **Trading Volume** | Cumulative swap amounts over time | `Swap` events from the pool, accumulated in ReactVM state |
@@ -376,15 +375,15 @@ PENDING → VERIFIED → UNLOCKED
 
 PENDING:    Threshold not yet met. LP remains locked.
 VERIFIED:   RSC detects threshold met. Callback dispatched.
-UNLOCKED:   Callback executed on-chain. LP released to founder.
+UNLOCKED:   Callback executed on chain. LP released to founder.
 ```
 
 ### Can Milestones Be Reversed?
 
 **No.** Once a milestone is verified and LP is unlocked, it's done. The founder has already withdrawn that portion. However:
 
-- If rug signals fire **after** a partial unlock, the **remaining locked LP** gets rage-locked
-- The already-unlocked portion is gone — but the majority is still protected
+- If rug signals fire **after** a partial unlock, the **remaining locked LP** gets rage locked.
+- The already unlocked portion is gone, but the majority is still protected.
 - This is why progressive unlock matters: only 25% might be out, and 75% is still locked and protected
 
 ### Milestone + Rug Signal Interaction
@@ -397,13 +396,13 @@ Rug signals fire → composite score 63 → RAGE LOCK
 Result:
   ✅ 25% already withdrawn by founder (can't be clawed back)
   🔒 75% locked for 30 additional days
-  ❄️  M2 and M3 frozen — even if thresholds are met during rage lock,
+  ❄️  M2 and M3 frozen. Even if thresholds are met during rage lock,
      no more LP is released until the rage lock expires AND score drops below 50
 ```
 
 ---
 
-## Callback System — How Cross-Chain Actions Work
+## Callback System: How Cross Chain Actions Work
 
 ### The Flow
 
@@ -422,7 +421,7 @@ Result:
 For security, the Reactive Network **replaces the first argument** of every callback with the **RVM ID** (the deployer's address). This means:
 
 - The callback contract can verify that only **our** reactive contract is sending commands
-- A random attacker can't call `unlockMilestone()` directly — it would have the wrong RVM ID
+- A random attacker cannot call `unlockMilestone()` directly. It would have the wrong RVM ID.
 - This is enforced by the `rvmIdOnly` modifier from `AbstractCallback`
 
 ### The Three Callbacks
@@ -443,24 +442,24 @@ For security, the Reactive Network **replaces the first argument** of every call
 **3. `updateRiskScore(address rvmId, address pool, uint256 newScore)`**
 
 - Triggered when: Composite risk score is 26–49 (Watch zone)
-- Effect: Writes the current risk score on-chain so the frontend can display it
+- Effect: Writes the current risk score on chain so the frontend can display it
 - Frequency: Fires on every score change in the Watch zone
 
 ---
 
-## Multi-Layer Protection
+## Multi Layer Protection
 
 Proven has **three independent defense layers** that protect against different attack vectors:
 
-### Layer 1: ProvenHook (Instant — Same Block)
+### Layer 1: ProvenHook (Instant, Same Block)
 
-The Uniswap v4 hook has `beforeRemoveLiquidity` logic that checks if the LP is locked in the vault. If yes, the transaction **reverts immediately**. This is the fastest defense — no cross-chain communication needed.
+The Uniswap v4 hook has `beforeRemoveLiquidity` logic that checks if the LP is locked in the vault. If yes, the transaction **reverts immediately**. This is the fastest defense. No cross chain communication is needed.
 
 ```
 Attacker calls removeLiquidity() → Hook checks vault → REVERT
 ```
 
-### Layer 2: ProvenVault (Instant — Same Block)
+### Layer 2: ProvenVault (Instant, Same Block)
 
 The vault contract enforces unlock percentages. Even if someone bypasses the hook, the vault itself won't release more LP than what's been unlocked by verified milestones.
 
@@ -468,9 +467,9 @@ The vault contract enforces unlock percentages. Even if someone bypasses the hoo
 Attacker calls vault.withdraw(100%) → Vault checks: only 25% unlocked → REVERT
 ```
 
-### Layer 3: ProvenReactive (Cross-Chain — 1-2 Blocks)
+### Layer 3: RiskGuardRSC (Cross Chain, 1 to 2 Blocks)
 
-The reactive contract catches everything else — the subtle, indirect signals that precede a rug. Token transfers, treasury drains, concentration changes. These don't directly interact with the pool or vault, so Layers 1 and 2 can't catch them. The RSC monitors these patterns cross-chain and extends the lock preemptively.
+The reactive contract catches everything else. It detects subtle and indirect signals that precede a rug. Token transfers, treasury drains, and concentration changes do not directly interact with the pool or vault, so layers 1 and 2 cannot catch them. The RSC monitors these patterns across chains and extends the lock preemptively.
 
 ```
 Founder drains treasury + moves tokens → RSC detects pattern → extendLock()
@@ -480,13 +479,13 @@ Founder drains treasury + moves tokens → RSC detects pattern → extendLock()
 
 | Attack Vector | Layer 1 (Hook) | Layer 2 (Vault) | Layer 3 (RSC) |
 |---|---|---|---|
-| Direct LP removal from pool | ✅ Blocks | — | ✅ Detects attempt (S3) |
-| Withdraw more than unlocked from vault | — | ✅ Blocks | — |
-| Move tokens to fresh wallets | — | — | ✅ Detects (S1) |
-| Drain treasury | — | — | ✅ Detects (S2) |
-| Concentrate supply in few wallets | — | — | ✅ Detects (S4) |
-| Cause mass holder exodus | — | — | ✅ Detects (S5) |
-| Wait for time-lock to expire | N/A | N/A | **Impossible** (milestone-based) |
+| Direct LP removal from pool | ✅ Blocks | Not applicable | ✅ Detects attempt (S3) |
+| Withdraw more than unlocked from vault | Not applicable | ✅ Blocks | Not applicable |
+| Move tokens to fresh wallets | Not applicable | Not applicable | ✅ Detects (S1) |
+| Drain treasury | Not applicable | Not applicable | ✅ Detects (S2) |
+| Concentrate supply in few wallets | Not applicable | Not applicable | ✅ Detects (S4) |
+| Cause mass holder exodus | Not applicable | Not applicable | ✅ Detects (S5) |
+| Wait for time lock to expire | N/A | N/A | **Impossible** (milestone based) |
 
 ---
 
@@ -496,13 +495,13 @@ Proven is powerful but not omniscient. It's important to be honest about limitat
 
 | Scenario | Proven's Response |
 |---|---|
-| Token price drops due to market conditions | ❌ Not a rug — LP is locked, investors can still sell |
-| Founder builds a bad product | ❌ Not a scam — milestones just won't be met, LP stays locked |
+| Token price drops due to market conditions | ❌ Not a rug. LP is locked and investors can still sell |
+| Founder builds a bad product | ❌ Not a scam. Milestones just will not be met, and LP stays locked |
 | Founder sells their personal token holdings (not LP) | ⚠️ S1 may partially detect this, but founders are allowed to sell some tokens |
-| Off-chain fraud (fake marketing, lying about team) | ❌ Out of scope — Proven monitors on-chain data only |
-| Smart contract exploits in the token itself | ❌ Out of scope — Proven protects LP, not the token contract |
+| Off chain fraud (fake marketing, lying about team) | ❌ Out of scope. Proven monitors on chain data only |
+| Smart contract exploits in the token itself | ❌ Out of scope. Proven protects LP, not the token contract |
 
-> **Proven eliminates scam risk (rug pulls). It does not eliminate market risk (bad investments).**
+> **Proven eliminates scam risk. It does not eliminate market risks.**
 
 ---
 
@@ -512,16 +511,15 @@ Proven is powerful but not omniscient. It's important to be honest about limitat
 
 | Contract | Purpose |
 |---|---|
-| **ProvenHook.sol** | Uniswap v4 hook — emits pool metric events, blocks unauthorized LP removal |
-| **ProvenVault.sol** | Holds locked LP tokens, enforces milestone-based unlock logic |
-| **ProvenCallback.sol** | Receives callbacks from Reactive Network — executes `unlockMilestone()`, `extendLock()`, `updateRiskScore()` |
+| **ProvenHook.sol** | Uniswap v4 hook. It emits pool metric events and blocks unauthorized LP removal |
+| **ProvenVault.sol** | Holds locked LP tokens and enforces milestone based unlock logic |
+| **ProvenCallback.sol** | Receives callbacks from Reactive Network and executes `unlockMilestone()`, `extendLock()`, and `updateRiskScore()` |
 
 ### On Lasna Testnet (5318007)
 
 | Contract | Purpose |
 |---|---|
-| **ProvenReactive.sol** | The autonomous brain — subscribes to events, runs signal logic, emits callbacks |
-| **SignalLib.sol** | Pure library — 5-signal scoring math |
+| **RiskGuardRSC.sol** | The autonomous brain. It subscribes to events, runs signal logic, and emits callbacks |
 
 ---
 
@@ -529,40 +527,44 @@ Proven is powerful but not omniscient. It's important to be honest about limitat
 
 ```
 Proven/
-├── Frontend/                          # React + Vite + TypeScript
+├── Frontend/                          # React + Vite + TypeScript app
 │   ├── src/
 │   │   ├── pages/
-│   │   │   ├── Home.tsx               # Landing page
-│   │   │   ├── LaunchPool.tsx         # 3-step pool creation flow
-│   │   │   ├── InvestorDashboard.tsx  # Project verification page
-│   │   │   └── RSCActivityMonitor.tsx # Live RSC event stream
-│   │   ├── components/                # Reusable UI components
-│   │   ├── store/                     # Zustand state management
-│   │   ├── hooks/                     # Web3 hooks (wagmi)
-│   │   ├── config/                    # Constants, wagmi config
-│   │   └── utils/                     # Formatting utilities
-│   └── package.json
+│   │   │   ├── Home.tsx
+│   │   │   ├── LaunchPool.tsx
+│   │   │   ├── InvestorDashboard.tsx
+│   │   │   └── RSCActivityMonitor.tsx
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── store/
+│   │   ├── config/
+│   │   └── utils/
+│   └── README.md
 │
-├── Reactive-Smart-Contracts/          # Foundry project (Solidity)
+├── proven-hook/                       # Foundry project (Unichain-side hook)
 │   ├── src/
-│   │   ├── ProvenReactive.sol         # Reactive contract (Lasna)
-│   │   ├── ProvenCallback.sol         # Callback receiver (Unichain)
-│   │   ├── interfaces/
-│   │   │   └── IProvenVault.sol       # Vault interface
-│   │   └── libraries/
-│   │       └── SignalLib.sol          # Rug signal scoring logic
-│   ├── script/                        # Deployment scripts
-│   ├── test/                          # Forge tests
-│   ├── lib/
-│   │   ├── forge-std/                 # Foundry standard library
-│   │   └── reactive-lib/             # Reactive Network base contracts
-│   └── foundry.toml
+│   │   ├── VestingHook.sol
+│   │   ├── VestingTypes.sol
+│   │   ├── MockVaultManager.sol
+│   │   └── IVaultManager.sol
+│   ├── script/
+│   ├── test/
+│   │   └── fuzz/
+│   └── README.md
 │
-├── Uni-v4-pool/                       # Uniswap v4 Hook (Unichain)
-│   └── (ProvenHook + ProvenVault)
+├── Reactive-Smart-Contracts/          # Foundry project (Reactive layer)
+│   ├── src/
+│   │   ├── RiskGuardRSC.sol
+│   │   └── ProvenCallback.sol
+│   ├── script/
+│   ├── test/
+│   │   └── fuzz/
+│   └── README.md
 │
-├── LICENSE                            # MIT
-└── README.md                          # ← You are here
+├── DEPLOY.md
+├── deploy.sh
+├── LICENSE
+└── README.md
 ```
 
 ---
@@ -625,31 +627,16 @@ forge script script/DeployReactive.s.sol --rpc-url $LASNA_RPC --broadcast
 
 ---
 
-## Demo Flow (7 Minutes)
-
-### For Judges / Reviewers
-
-1. **Landing Page** — Show live activity feed, explain the $SQUID problem, how Proven solves it
-2. **Launch Pool** — Fill in a test token, set 3 milestones, sign 2 MetaMask transactions
-3. **Investor Dashboard** — Show locked LP at 0% unlocked, risk score at 0, all milestones pending
-4. **Trigger a swap** — Run a test swap script. Watch TVL bar fill in real-time on the dashboard
-5. **Milestone unlocks** — When TVL crosses threshold, milestone turns green, 25% unlocks
-6. **RSC Monitor** — Show the event arriving from Unichain → react() evaluating → callback dispatched
-7. **Trigger rug signal** — Transfer 25% of tokens to a fresh wallet. Watch S1 fire, score jump
-8. **Rage Lock** — Score crosses 50 → extendLock callback fires → dashboard shows red Rage Lock banner
-
----
-
 ## Why Proven Is Different
 
-| Traditional Time-Lock | Proven |
+| Traditional Time Lock | Proven |
 |---|---|
-| LP unlocks after X days regardless | LP unlocks only when milestones are verified on-chain |
+| LP unlocks after X days regardless | LP unlocks only when milestones are verified on chain |
 | No monitoring after lock | 5 signals monitored continuously every block |
 | Founder just waits it out | Founder must build a real project to unlock |
 | No response to suspicious activity | Automatic Rage Lock if rug signals detected |
 | Centralized (team holds keys) | Fully autonomous (Reactive Smart Contracts) |
-| Single chain | Cross-chain (Unichain ↔ Reactive Network) |
+| Single chain | Cross chain (Unichain ↔ Reactive Network) |
 
 ---
 
@@ -659,7 +646,7 @@ forge script script/DeployReactive.s.sol --rpc-url $LASNA_RPC --broadcast
 |---|---|
 | Frontend | React, TypeScript, Vite, Tailwind CSS, wagmi, zustand |
 | Smart Contracts | Solidity, Foundry, Uniswap v4 Hooks |
-| Reactive Layer | Reactive Network, reactive-lib, Lasna Testnet |
+| Reactive Layer | Reactive Network, reactive lib, Lasna Testnet |
 | Origin/Destination | Unichain Sepolia |
 | Wallet | MetaMask (injected connector) |
 
@@ -674,15 +661,15 @@ Locking LP forever means no rational founder would use Proven. Progressive unloc
 - **Founders** are motivated to build (they get capital back by succeeding)
 - **Investors** are protected (LP can't leave until real growth happens)
 - **Bad actors** are blocked (rug signals extend the lock)
-- **Good actors** are rewarded (milestones met → partial unlock)
+- **Good actors** are rewarded (milestones met and partial unlock follows)
 
-Think of it like startup equity vesting: a founder gets their shares over 4 years as they build the company. Proven does the same thing — but for token liquidity, verified on-chain, with no board of directors needed.
+Think of it like startup equity vesting: a founder gets their shares over 4 years as they build the company. Proven does the same thing for token liquidity, verified on chain, with no board of directors needed.
 
 ### What If Milestones Are Never Met?
 
 LP stays locked forever. The founder loses their capital. But crucially:
 
-- The **pool still has liquidity** — investors can always sell their tokens
+- The **pool still has liquidity**. Investors can always sell their tokens.
 - Unlike a rug pull where the pool is drained and tokens become **untradeable**, with Proven the token may lose value but investors can **always exit**
 - Proven eliminates **scam risk** while leaving **market risk** with the investor's own judgment
 
@@ -694,21 +681,21 @@ LP removed by founder          LP locked forever
 Pool = empty                   Pool = still has liquidity
 Investor tries to sell         Investor tries to sell
 → CANNOT. No liquidity.        → CAN. Pool still works.
-→ Token worth literally $0     → Token worth $0.05
-→ Total loss: 100%             → Loss: 95%, but they GOT OUT
+→ Token worth literally $0     → Token worth $0.5
+→ Complete LOSS                → Loss will be there but not massive
 ```
 
-### Reactive Smart Contracts — How They Enable Proven
+### Reactive Smart Contracts: How They Enable Proven
 
-Traditional smart contracts are passive — they only execute when someone sends a transaction. This means you need bots, multisigs, or centralized servers to trigger protective actions. All of these are trust assumptions.
+Traditional smart contracts are passive. They only execute when someone sends a transaction. This means you need bots, multisigs, or centralized servers to trigger protective actions. All of these are trust assumptions.
 
 Reactive Smart Contracts (RSCs) on the Reactive Network **invert this model**:
 
-1. **Subscribe** — The RSC tells the network: "watch these events on chain X"
-2. **React** — When an event matches, the network calls `react()` automatically
-3. **Callback** — The RSC emits a `Callback` event that the network delivers as a transaction to the destination chain
+1. **Subscribe**: The RSC tells the network to watch events on a chain.
+2. **React**: When an event matches, the network calls `react()` automatically.
+3. **Callback**: The RSC emits a `Callback` event that the network delivers as a transaction to the destination chain.
 
-This gives Proven its core property: **nobody needs to press a button**. The rug detection and lock extension happen autonomously, trustlessly, on-chain. The RSC runs in an isolated ReactVM — it can't be tampered with, paused, or bribed.
+This gives Proven its core property: **nobody needs to press a button**. Rug detection and lock extension happen autonomously and trustlessly on chain. The RSC runs in an isolated ReactVM. It cannot be tampered with, paused, or bribed.
 
 Without the Reactive Network, Proven would need a centralized monitoring server with private keys. That server would be a single point of failure, a trust assumption, and a target for attackers. The RSC eliminates all of that.
 
@@ -730,7 +717,7 @@ This project is built for the Reactive Network hackathon. Contributions welcome 
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE) for details.
 
 ---
 

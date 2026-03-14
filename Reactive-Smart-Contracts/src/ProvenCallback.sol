@@ -23,7 +23,7 @@ interface ITimeLockHook {
  * @title ProvenCallback
  * @author Proven Protocol
  * @notice Callback receiver deployed on the origin chain (Ethereum Sepolia, same chain as VestingHook).
- *         Receives cross-chain callbacks from TimeLockRSC running on Reactive Lasna,
+ *         Receives cross-chain callbacks from RiskGuardRSC running on Reactive Lasna,
  *         and translates them into state changes on the VestingHook:
  *
  *         • authorizeUnlock  → VestingHook.authorizeUnlock(team, milestoneId)
@@ -121,7 +121,7 @@ contract ProvenCallback is AbstractCallback {
     }
 
     /**
-     * @notice Debug-only probe emitted from TimeLockRSC.react() callback path.
+    * @notice Debug-only probe emitted from RiskGuardRSC.react() callback path.
      * @dev Helps verify ReactVM-side values on destination-chain events.
      */
     function debugReactProbe(

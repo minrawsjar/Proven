@@ -5,14 +5,15 @@
 #
 #  Deploys all contracts across two chains:
 #    • Unichain Sepolia (chain 1301):  MockVaultManager, VestingHook, ProvenCallback
-#    • Lasna Testnet (chain 5318007):  TimeLockRSC
+#    • Lasna Testnet (chain 5318007):  RiskGuardRSC
 #
 #  Prerequisites:
 #    1. Foundry installed (forge, cast)
 #    2. .env files in both proven-hook/ and Reactive-Smart-Contracts/
-#    3. Deployer wallet funded on BOTH chains
-#       - Unichain Sepolia: ≥ 0.3 ETH (gas + 0.1 ETH for ProvenCallback)
-#       - Lasna Testnet: ≥ 1.0 ETH (gas + 0.5 ETH for TimeLockRSC)
+#    3. SAME deployer private key in both .env files (required for address prediction)
+#    4. Deployer wallet funded on BOTH chains
+#       - Unichain Sepolia: ≥ 0.1 ETH (typical gas budget)
+#       - Lasna Testnet: ≥ 2.1 ETH (2 ETH constructor funding + gas)
 #
 #  Usage:
 #    chmod +x deploy.sh
@@ -35,6 +36,9 @@ ok()    { echo -e "${GREEN}[  OK  ]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[ WARN ]${NC} $*"; }
 fail()  { echo -e "${RED}[FAILED]${NC} $*"; exit 1; }
 
+command -v forge >/dev/null 2>&1 || fail "forge not found. Install Foundry first."
+command -v cast >/dev/null 2>&1 || fail "cast not found. Install Foundry first."
+
 # ─── Validate env files ────────────────────────────────────────────────────
 log "Checking environment files..."
 
@@ -54,6 +58,29 @@ set +a
 if [[ -z "${PRIVATE_KEY:-}" ]]; then
     fail "PRIVATE_KEY not set in $HOOK_DIR/.env"
 fi
+
+if [[ -z "${POOL_MANAGER:-}" ]]; then
+    fail "POOL_MANAGER not set in $HOOK_DIR/.env (required by DeployProvenScript)"
+fi
+
+HOOK_PRIVATE_KEY="$PRIVATE_KEY"
+
+# Validate RSC .env key and enforce same key for deterministic callback prediction
+set -a
+source "$RSC_DIR/.env"
+set +a
+
+if [[ -z "${PRIVATE_KEY:-}" ]]; then
+    fail "PRIVATE_KEY not set in $RSC_DIR/.env"
+fi
+
+RSC_PRIVATE_KEY="$PRIVATE_KEY"
+
+if [[ "${HOOK_PRIVATE_KEY,,}" != "${RSC_PRIVATE_KEY,,}" ]]; then
+    fail "PRIVATE_KEY mismatch between proven-hook/.env and Reactive-Smart-Contracts/.env. Use the SAME key in both files."
+fi
+
+PRIVATE_KEY="$HOOK_PRIVATE_KEY"
 
 DEPLOYER=$(cast wallet address "$PRIVATE_KEY" 2>/dev/null) || fail "Invalid PRIVATE_KEY"
 log "Deployer: $DEPLOYER"
@@ -119,6 +146,9 @@ cd "$RSC_DIR"
 set -a
 source "$RSC_DIR/.env"
 set +a
+
+# Always use the same deployer key captured from proven-hook/.env
+PRIVATE_KEY="$HOOK_PRIVATE_KEY"
 export VESTING_HOOK_ADDR="$HOOK_ADDR"
 export CALLBACK_SENDER_ADDR="${CALLBACK_SENDER_ADDR:-0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4}"
 
@@ -164,18 +194,20 @@ ok "ProvenCallback: $CALLBACK_ADDR"
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════"
-echo "         PHASE 3: Lasna Testnet (TimeLockRSC)"
+echo "         PHASE 3: Lasna Testnet (RiskGuardRSC)"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 
-log "Deploying TimeLockRSC on Lasna testnet via forge create..."
+log "Deploying RiskGuardRSC on Lasna testnet via forge create..."
 log "(Using forge create to avoid Reactive Network precompile simulation issues)"
 echo ""
 
-RSC_OUTPUT=$(forge create src/TimeLockRSC.sol:TimeLockRSC \
+RSC_DEPLOY_VALUE="${RSC_DEPLOY_VALUE:-2ether}"
+
+RSC_OUTPUT=$(forge create src/RiskGuardRSC.sol:RiskGuardRSC \
     --rpc-url https://lasna-rpc.rnk.dev \
     --private-key "$PRIVATE_KEY" \
-    --value 0.5ether \
+    --value "$RSC_DEPLOY_VALUE" \
     --broadcast \
     --constructor-args 1301 1301 "$HOOK_ADDR" "$CALLBACK_ADDR" 2>&1) || {
     echo "$RSC_OUTPUT"
@@ -187,12 +219,12 @@ echo "$RSC_OUTPUT"
 RSC_ADDR=$(echo "$RSC_OUTPUT" | grep 'Deployed to:' | grep -o '0x[0-9a-fA-F]*' | head -1) || true
 
 if [[ -z "$RSC_ADDR" ]]; then
-    warn "Could not auto-extract TimeLockRSC address."
-    read -rp "Enter TimeLockRSC address: " RSC_ADDR
+    warn "Could not auto-extract RiskGuardRSC address."
+    read -rp "Enter RiskGuardRSC address: " RSC_ADDR
 fi
 
 ok "Phase 3 complete!"
-ok "TimeLockRSC: $RSC_ADDR"
+ok "RiskGuardRSC: $RSC_ADDR"
 echo ""
 
 echo "═══════════════════════════════════════════════════════════════"
@@ -205,7 +237,7 @@ echo "  ├─ VestingHook:       $HOOK_ADDR"
 echo "  └─ ProvenCallback:    $CALLBACK_ADDR"
 echo ""
 echo "  Chain: Lasna Testnet (5318007)"
-echo "  └─ TimeLockRSC:       $RSC_ADDR"
+echo "  └─ RiskGuardRSC:      $RSC_ADDR"
 echo ""
 
 # ─── Write frontend .env ────────────────────────────────────────────────────
@@ -247,4 +279,5 @@ echo "  Next steps:"
 echo "    1. cd Frontend && npm run dev"
 echo "    2. Connect wallet on Unichain Sepolia"
 echo "    3. Test the full flow: LaunchPool → InvestorDashboard → RSCMonitor"
+echo "    4. (Optional) set PROVEN_REACTIVE_ADDR in Reactive-Smart-Contracts/.env"
 echo "═══════════════════════════════════════════════════════════════"

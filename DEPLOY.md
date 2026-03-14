@@ -4,23 +4,23 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Unichain Sepolia (1301)                 │
+│                  Unichain Sepolia (1301)                │
 │                                                         │
-│  ┌──────────────┐  ┌─────────────┐  ┌───────────────┐  │
-│  │MockVaultMgr  │←─│ VestingHook │←─│ProvenCallback │  │
-│  │(LP custody)  │  │ (Uni v4 hook│  │(RSC relay)    │  │
-│  └──────────────┘  │  CREATE2)   │  └───────┬───────┘  │
+│  ┌──────────────┐  ┌─────────────┐  ┌───────────────┐   │ 
+│  │MockVaultMgr  │←─│ VestingHook │←─│ProvenCallback │   │
+│  │(LP custody)  │  │ (Uni v4 hook│  │(RSC relay)    │   │
+│  └──────────────┘  │  CREATE2)   │  └───────┬───────┘   │
 │                    └──────┬──────┘          ↑           │
 │                           │          Callback Proxy     │
 │                    PoolManager        0x9299472A...     │
-│                    0x00b036b5...                         │
+│                    0x00b036b5...                        │
 └─────────────────────────────────────────────────────────┘
                             │  events ↓    ↑ callbacks
 ┌─────────────────────────────────────────────────────────┐
-│                  Lasna Testnet (5318007)                 │
+│                  Lasna Testnet (5318007)                │
 │                                                         │
 │              ┌──────────────────────┐                   │
-│              │     TimeLockRSC      │                   │
+│              │    RiskGuardRSC      │                   │
 │              │  (5-signal rug det.) │                   │
 │              └──────────────────────┘                   │
 └─────────────────────────────────────────────────────────┘
@@ -30,8 +30,8 @@
 
 1. **Foundry** installed (`forge`, `cast`)
 2. **Deployer wallet** funded on both chains:
-   - Unichain Sepolia: ≥ **0.3 ETH** (gas + 0.1 ETH for ProvenCallback)
-   - Lasna Testnet: ≥ **1.0 ETH** (gas + 0.5 ETH for TimeLockRSC)
+  - Unichain Sepolia: enough ETH for gas (typically `>= 0.1 ETH`)
+  - Lasna Testnet: enough ETH for gas + constructor value (typically `>= 2.1 ETH`)
 3. **Same private key** for all deployments (required for address prediction)
 
 ### Get Testnet Funds
@@ -44,15 +44,15 @@
 ## Quick Deploy (Automated)
 
 ```bash
-# 1. Set up environment
-cp proven-hook/.env.example proven-hook/.env
-cp Reactive-Smart-Contracts/.env.example Reactive-Smart-Contracts/.env
-
-# 2. Fill in PRIVATE_KEY in both .env files (same key!)
-#    nano proven-hook/.env
-#    nano Reactive-Smart-Contracts/.env
-
-# 3. Run the master deploy script
+# 1. Ensure these files exist and are configured:
+#    proven-hook/.env
+#    Reactive-Smart-Contracts/.env
+#
+#    Required:
+#    - SAME PRIVATE_KEY in both
+#    - POOL_MANAGER in proven-hook/.env
+#
+# 2. Run the master deploy script
 ./deploy.sh
 ```
 
@@ -102,7 +102,7 @@ forge script script/DeployCallback.s.sol:DeployCallbackScript \
 
 ⚠️ **CRITICAL**: The ProvenCallback address MUST match the prediction from Phase 1. If it doesn't, VestingHook's `RSC_AUTHORIZER` is wrong and you must redeploy everything.
 
-### Phase 3: Lasna Testnet — TimeLockRSC
+### Phase 3: Lasna Testnet — RiskGuardRSC
 
 ```bash
 # Still in Reactive-Smart-Contracts/
@@ -110,11 +110,12 @@ export ORIGIN_CHAIN_ID=1301
 export CALLBACK_CHAIN_ID=1301
 export PROVEN_CALLBACK_ADDR=<callback_address_from_phase_2>
 
-forge script script/DeployReactive.s.sol:DeployReactiveScript \
+forge create src/RiskGuardRSC.sol:RiskGuardRSC \
   --rpc-url https://lasna-rpc.rnk.dev \
   --private-key $PRIVATE_KEY \
+  --value 2ether \
   --broadcast \
-  -vvvv
+  --constructor-args 1301 1301 <hook_address_from_phase_1> <callback_address_from_phase_2>
 ```
 
 ### Phase 4: Update Frontend
@@ -125,7 +126,7 @@ Create `Frontend/.env`:
 VITE_HOOK_ADDRESS=<vesting_hook_address>
 VITE_VAULT_ADDRESS=<vault_manager_address>
 VITE_CALLBACK_ADDRESS=<proven_callback_address>
-VITE_RSC_ADDRESS=<timelockrsc_address>
+VITE_RSC_ADDRESS=<riskguardrsc_address>
 ```
 
 Then:
@@ -146,7 +147,7 @@ npm run dev
 | MockVaultManager | Unichain Sepolia (1301) | |
 | VestingHook | Unichain Sepolia (1301) | |
 | ProvenCallback | Unichain Sepolia (1301) | |
-| TimeLockRSC | Lasna Testnet (5318007) | |
+| RiskGuardRSC | Lasna Testnet (5318007) | |
 
 ---
 
@@ -187,5 +188,5 @@ A transaction was sent between Phase 1 and Phase 2, shifting the nonce. The Vest
 ### "HookMiner: no valid salt found"
 Increase the iteration limit in `HookMiner.sol` (currently 500k). The theoretical maximum needed is ~2^14 ≈ 16k, but hash distribution may require more.
 
-### TimeLockRSC deployment fails on Lasna
-Ensure you have ≥ 1.0 ETH on Lasna. The constructor is `payable` and sends 0.5 ETH to the contract for Reactive Network subscription fees.
+### RiskGuardRSC deployment fails on Lasna
+Ensure you have sufficient Lasna balance. Deployment sends constructor value (`2 ether` by default in current flow) plus gas.

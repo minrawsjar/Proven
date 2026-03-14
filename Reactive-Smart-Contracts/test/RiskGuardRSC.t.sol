@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
-import {TimeLockRSC} from "../src/TimeLockRSC.sol";
+import {RiskGuardRSC} from "../src/RiskGuardRSC.sol";
 import {ProvenCallback} from "../src/ProvenCallback.sol";
 import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
 
@@ -44,11 +44,11 @@ contract MockTimeLockHook {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//                         TIMELOCKRSC TESTS
+//                         RISKGUARDRSC TESTS
 // ════════════════════════════════════════════════════════════════════════════
 
-contract TimeLockRSCTest is Test {
-    TimeLockRSC     rsc;
+contract RiskGuardRSCTest is Test {
+    RiskGuardRSC    rsc;
     ProvenCallback  callback;
     MockTimeLockHook hook;
 
@@ -70,7 +70,7 @@ contract TimeLockRSCTest is Test {
         );
 
         // 3. Deploy RSC (in test env, vm=true → skips real subscriptions)
-        rsc = new TimeLockRSC(
+        rsc = new RiskGuardRSC(
             ORIGIN_CHAIN,
             CALLBACK_CHAIN,
             address(hook),

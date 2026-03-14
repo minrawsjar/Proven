@@ -36,7 +36,7 @@ interface IPoolSwapTest {
 /**
  * @title TriggerSwap — Execute a swap to generate PoolMetricsUpdated events
  * @notice This swap triggers the VestingHook's afterSwap → emits PoolMetricsUpdated
- *         → Reactive Network picks it up → TimeLockRSC evaluates milestones & signals
+ *         → Reactive Network picks it up → RiskGuardRSC evaluates milestones & signals
  */
 contract TriggerSwap is Script {
     // ── Deployed addresses on Unichain Sepolia ──

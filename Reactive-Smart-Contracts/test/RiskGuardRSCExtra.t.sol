@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
-import {TimeLockRSC} from "../src/TimeLockRSC.sol";
+import {RiskGuardRSC} from "../src/RiskGuardRSC.sol";
 import {IReactive} from "reactive-lib/interfaces/IReactive.sol";
 
 contract MockSystemService {
@@ -21,8 +21,8 @@ contract MockSystemService {
     function unsubscribe(uint256, address, uint256, uint256, uint256, uint256) external {}
 }
 
-contract TimeLockRSCExtraTest is Test {
-    TimeLockRSC internal rsc;
+contract RiskGuardRSCExtraTest is Test {
+    RiskGuardRSC internal rsc;
 
     uint256 constant ORIGIN_CHAIN = 11155111;
     uint256 constant CALLBACK_CHAIN = 11155111;
@@ -33,7 +33,7 @@ contract TimeLockRSCExtraTest is Test {
     bytes32 constant POOL_ID = bytes32(uint256(0x1234));
 
     function setUp() public {
-        rsc = new TimeLockRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
+        rsc = new RiskGuardRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
         rsc.registerMilestones(
             POOL_ID,
             TEAM,
@@ -171,7 +171,7 @@ contract TimeLockRSCExtraTest is Test {
     }
 
     function test_callbackDebugProbe_authorizedPathCovered() public {
-        // Equivalent path lives in ProvenCallback; here we ensure TimeLockRSC debug callback emission path runs.
+        // Equivalent path lives in ProvenCallback; here we ensure RiskGuardRSC debug callback emission path runs.
         rsc.react(_buildMetricsLog(0, 0, 0));
         assertEq(rsc.totalReactCalls(), 1);
     }
@@ -264,8 +264,8 @@ contract TimeLockRSCExtraTest is Test {
     }
 }
 
-contract TimeLockRSCRnOnlyTest is Test {
-    TimeLockRSC internal rsc;
+contract RiskGuardRSCRnOnlyTest is Test {
+    RiskGuardRSC internal rsc;
     MockSystemService internal service;
 
     uint256 constant ORIGIN_CHAIN = 11155111;
@@ -276,7 +276,7 @@ contract TimeLockRSCRnOnlyTest is Test {
         service = new MockSystemService();
         vm.etch(SYSTEM_ADDR, address(service).code);
 
-        rsc = new TimeLockRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
+        rsc = new RiskGuardRSC(ORIGIN_CHAIN, CALLBACK_CHAIN, address(0x1111), address(0x2222));
     }
 
     function test_bootstrapPositionRegSubscription_rnOnlyOwner() public {
@@ -287,7 +287,7 @@ contract TimeLockRSCRnOnlyTest is Test {
 
     function test_bootstrapPositionRegSubscription_revertOnlyOwner() public {
         vm.prank(address(0xDEAD));
-        vm.expectRevert(abi.encodeWithSelector(TimeLockRSC.OnlyOwner.selector));
+        vm.expectRevert(abi.encodeWithSelector(RiskGuardRSC.OnlyOwner.selector));
         rsc.bootstrapPositionRegSubscription();
     }
 

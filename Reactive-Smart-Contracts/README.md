@@ -1,66 +1,106 @@
-## Foundry
+# Reactive-Smart-Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Reactive policy layer for Proven.
 
-Foundry consists of:
+This package contains **RiskGuardRSC** and **ProvenCallback**.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- `RiskGuardRSC` ingests hook events, evaluates milestones/risk, and emits callback intents.
+- `ProvenCallback` receives authorized callbacks on origin chain and relays hook actions.
 
-## Documentation
+---
 
-https://book.getfoundry.sh/
+## Core contracts
 
-## Usage
+- `src/RiskGuardRSC.sol`
+- `src/ProvenCallback.sol`
 
-### Build
+---
 
-```shell
-$ forge build
+## What it does
+
+1. Subscribes to origin chain hook events.
+2. Automatically indexes newly launched teams and pools.
+3. Evaluates milestone completion and risk signals.
+4. Dispatches callback actions:
+   - `authorizeUnlock`
+   - `pauseWithdrawals`
+   - `extendLock`
+
+---
+
+## How RSC protects LP (from protocol flow)
+
+`RiskGuardRSC` is the autonomous policy brain on Lasna. It helps by continuously enforcing two outcomes:
+
+1. **Progress based unlocks**
+   - Consumes `PoolMetricsUpdated` and related pool activity events.
+   - Tracks TVL, volume, and user metrics in reactive state.
+   - When a milestone is reached, emits callback intent so `ProvenCallback` executes unlock on Unichain.
+
+2. **Rug risk based lock extension (Rage Lock)**
+   - Evaluates rug signals on each relevant event.
+   - If composite risk breaches threshold, emits callback intent to extend lock windows.
+   - This adds time friction automatically, without bots or multisigs.
+
+### 5 Rug signals evaluated by `RiskGuardRSC`
+
+- **S1 Large holder outflow**: abnormal token movement from monitored wallets.
+- **S2 Treasury drain**: sudden treasury balance reduction.
+- **S3 LP withdrawal attempt**: direct remove liquidity intent (max severity).
+- **S4 Liquidity concentration**: top holders controlling too much supply.
+- **S5 Holder dispersion drop**: shrinking unique holder count.
+
+Each signal contributes to a composite risk score (`0-100`) used to decide whether to continue normal milestone flow or trigger protective lock extensions.
+
+---
+
+## Deployed contracts
+
+| Contract | Chain | Address |
+|---|---|---|
+| ProvenCallback | Unichain Sepolia (1301) | [0xeaD222788a469141e3dee4e777F882ddA0b67c9F](https://sepolia.uniscan.xyz/address/0xeaD222788a469141e3dee4e777F882ddA0b67c9F) |
+| RiskGuardRSC | Lasna Testnet (5318007) | [0x403Fe0408976b518b2952BdF590135Ec6ba12ebc](https://lasna.reactscan.net/address/0x403Fe0408976b518b2952BdF590135Ec6ba12ebc) |
+
+---
+
+## Folder structure
+
+```
+Reactive-Smart-Contracts/
+├── src/
+│   ├── RiskGuardRSC.sol
+│   └── ProvenCallback.sol
+├── script/
+│   ├── DeployReactive.s.sol
+│   └── DeployCallback.s.sol
+├── test/
+│   ├── RiskGuardRSC.t.sol
+│   ├── RiskGuardRSCExtra.t.sol
+│   ├── ProvenCallbackExtra.t.sol
+│   └── fuzz/
+│       └── RiskGuardRSCFuzz.t.sol
+└── foundry.toml
 ```
 
-### Test
+---
 
-```shell
-$ forge test
+## Commands
+
+```bash
+forge build
+forge test
+forge coverage --report summary
 ```
 
-### Format
+Deploy examples:
 
-```shell
-$ forge fmt
+```bash
+forge script script/DeployCallback.s.sol:DeployCallbackScript --rpc-url unichain_sepolia --broadcast
+forge create src/RiskGuardRSC.sol:RiskGuardRSC --rpc-url lasna --broadcast --private-key $PRIVATE_KEY --value 2ether --constructor-args 1301 1301 <HOOK_ADDR> <CALLBACK_ADDR>
 ```
 
-### Gas Snapshots
+---
 
-```shell
-$ forge snapshot
-```
+## Note on naming
 
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+The old name `TimeLockRSC` was legacy. `RiskGuardRSC` better reflects behavior through risk driven guarding with milestone logic and penalty lock windows.
