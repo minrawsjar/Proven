@@ -59,6 +59,10 @@ export function InvestorDashboard() {
   useEffect(() => {
     if (routeAddress && isValidAddress(routeAddress)) {
       setSelectedAddress(routeAddress)
+      return
+    }
+    if (!routeAddress) {
+      setSelectedAddress(null)
     }
   }, [routeAddress])
 

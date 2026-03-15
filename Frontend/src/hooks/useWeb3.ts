@@ -205,37 +205,49 @@ export const usePositionData = (teamAddress?: string) => {
 
         if (isEmptyPosition) {
           try {
-            const owner = await unichainClient.readContract({
-              address: addr,
-              abi: [
-                {
-                  type: 'function',
-                  name: 'owner',
-                  inputs: [],
-                  outputs: [{ name: '', type: 'address' }],
-                  stateMutability: 'view',
-                },
-              ] as const,
-              functionName: 'owner',
-            }) as `0x${string}`
+            const bytecode = await unichainClient.getBytecode({ address: addr })
+            const isContract = !!bytecode && bytecode !== '0x'
 
-            if (
-              owner &&
-              owner !== '0x0000000000000000000000000000000000000000' &&
-              owner.toLowerCase() !== addr.toLowerCase()
-            ) {
-              const ownerPosition = await readByTeam(owner)
-              const ownerHasPosition =
-                ownerPosition.team !== '0x0000000000000000000000000000000000000000' &&
-                ownerPosition.registeredAt > 0n
+            if (isContract) {
+              const currentBlock = await unichainClient.getBlockNumber()
+              const windowSize = 9_500n // Unichain RPC rejects getLogs ranges > 10_000 blocks.
+              let cursor = currentBlock
+              let latest: (Log & { args?: { team?: `0x${string}` } }) | undefined
 
-              if (ownerHasPosition) {
-                resolved = ownerPosition
-                if (!cancelled) setResolvedTeam(owner)
+              for (let i = 0; i < 600; i++) {
+                const fromBlock = cursor > windowSize ? cursor - windowSize : 0n
+                const logs = await unichainClient.getLogs({
+                  address: VESTING_HOOK_ADDRESS,
+                  event: positionRegisteredEvent,
+                  args: { tokenAddr: addr },
+                  fromBlock,
+                  toBlock: cursor,
+                })
+
+                if (logs.length > 0) {
+                  latest = logs[logs.length - 1] as Log & { args?: { team?: `0x${string}` } }
+                  break
+                }
+
+                if (fromBlock === 0n) break
+                cursor = fromBlock - 1n
+              }
+
+              const teamFromToken = latest?.args?.team as `0x${string}` | undefined
+              if (teamFromToken && teamFromToken !== '0x0000000000000000000000000000000000000000') {
+                const teamPosition = await readByTeam(teamFromToken)
+                const teamHasPosition =
+                  teamPosition.team !== '0x0000000000000000000000000000000000000000' &&
+                  teamPosition.registeredAt > 0n
+
+                if (teamHasPosition) {
+                  resolved = teamPosition
+                  if (!cancelled) setResolvedTeam(teamFromToken)
+                }
               }
             }
           } catch {
-            // Ignore non-ownable contracts or EOAs.
+            // Ignore resolution failures for EOAs / non-matching contracts.
           }
         }
 
