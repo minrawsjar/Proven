@@ -242,6 +242,7 @@ contract RiskGuardRSC is AbstractReactive {
     // ═══════════════════════════════════════════════════════════════════════════
 
     error OnlyOwner();
+    error OnlyOwnerOrTeam();
 
     // ═══════════════════════════════════════════════════════════════════════════
     //                            CONSTRUCTOR
@@ -777,6 +778,11 @@ contract RiskGuardRSC is AbstractReactive {
         _;
     }
 
+    modifier onlyOwnerOrTeam(address team) {
+        if (msg.sender != OWNER && msg.sender != team) revert OnlyOwnerOrTeam();
+        _;
+    }
+
     /**
      * @notice Manually bootstrap the permanent PositionRegistered subscription.
      * @dev Use this after deployment if constructor-time subscribe failed.
@@ -806,7 +812,7 @@ contract RiskGuardRSC is AbstractReactive {
         uint256[3] calldata conditionTypes,
         uint256[3] calldata thresholds,
         uint8[3]   calldata unlockPcts
-    ) external onlyOwner {
+    ) external onlyOwnerOrTeam(team) {
         _registerMilestonesCore(poolId, team, tokenAddr, deployer, conditionTypes, thresholds, unlockPcts);
     }
 
@@ -820,7 +826,7 @@ contract RiskGuardRSC is AbstractReactive {
         uint256[3] calldata conditionTypes,
         uint256[3] calldata thresholds,
         uint8[3]   calldata unlockPcts
-    ) external onlyOwner {
+    ) external onlyOwnerOrTeam(team) {
         TeamConfig storage cfg = configs[team];
         address tokenAddr = cfg.tokenAddr;
         _registerMilestonesCore(poolId, team, tokenAddr, team, conditionTypes, thresholds, unlockPcts);
@@ -899,7 +905,7 @@ contract RiskGuardRSC is AbstractReactive {
      * @param team   Team address
      * @param wallet Genesis wallet address
      */
-    function addGenesisWallet(address team, address wallet) external onlyOwner {
+    function addGenesisWallet(address team, address wallet) external onlyOwnerOrTeam(team) {
         walletToTeam[wallet] = team;
 
         // Subscribe to Transfer events from this genesis wallet
@@ -919,7 +925,7 @@ contract RiskGuardRSC is AbstractReactive {
      * @notice Set or clear treasury wallet/contract address for S5 monitoring.
      * @dev Pass address(0) to clear (nullable behavior).
      */
-    function setTreasuryAddress(address team, address treasury) external onlyOwner {
+    function setTreasuryAddress(address team, address treasury) external onlyOwnerOrTeam(team) {
         TeamConfig storage cfg = configs[team];
 
         address prev = cfg.treasuryAddr;
