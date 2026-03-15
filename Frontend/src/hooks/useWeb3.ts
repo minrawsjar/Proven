@@ -855,6 +855,31 @@ export const useContractWrites = () => {
     ) => {
       if (!walletClient) throw new Error('Wallet not connected')
 
+      const account = walletClient.account?.address as `0x${string}` | undefined
+      if (!account) throw new Error('Wallet account unavailable')
+
+      // Preflight: VestingHook allows one registration per team wallet.
+      // Avoid sending a tx that will revert with AlreadyRegistered().
+      const existing = await unichainClient.readContract({
+        address: VESTING_HOOK_ADDRESS,
+        abi: vestingHookAbi,
+        functionName: 'positions',
+        args: [account],
+      })
+      const [existingTeam, , , existingRegisteredAt] = existing as [
+        `0x${string}`,
+        `0x${string}`,
+        bigint,
+        bigint,
+        bigint,
+      ]
+      if (
+        existingTeam !== '0x0000000000000000000000000000000000000000' &&
+        existingRegisteredAt > 0n
+      ) {
+        throw new Error('This wallet already registered a vesting position. Use a fresh team wallet to launch another pool.')
+      }
+
       const formattedMilestones = milestones.map((m) => ({
         conditionType: CONDITION_TYPE_MAP[m.type as keyof typeof CONDITION_TYPE_MAP] ?? 0,
         threshold: BigInt(m.threshold),

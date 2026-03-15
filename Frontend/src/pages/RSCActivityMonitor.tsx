@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPublicClient, http, type Log, keccak256, toHex, decodeAbiParameters, formatUnits, parseAbiItem } from 'viem'
 import { useRSCMonitorStore } from '../store/rscMonitorStore.ts'
+import { useWallet } from '../hooks/useWeb3.ts'
 import {
   VESTING_HOOK_ADDRESS,
   RISK_GUARD_RSC_ADDRESS,
@@ -124,11 +125,21 @@ export function RSCActivityMonitor() {
   } = useRSCMonitorStore()
 
   const [projectFilter, setProjectFilter] = useState('')
+  const { address: connectedAddress } = useWallet()
+  const didAutoSeedFilter = useRef(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [isPaused, setIsPaused] = useState(false)
   const [relayStatus, setRelayStatus] = useState<'checking' | 'active' | 'waiting'>('checking')
   const leftRef = useRef<HTMLDivElement>(null)
   const rightRef = useRef<HTMLDivElement>(null)
+
+  // Seed filter once with connected wallet so monitor opens in "my team" mode.
+  useEffect(() => {
+    if (didAutoSeedFilter.current) return
+    if (!connectedAddress) return
+    setProjectFilter(connectedAddress)
+    didAutoSeedFilter.current = true
+  }, [connectedAddress])
 
   /* ── Direct polling for Unichain Hook events ── */
   useEffect(() => {
