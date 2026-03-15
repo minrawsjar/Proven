@@ -165,7 +165,19 @@ export function LaunchPool() {
     const tokenAmt = parseUnits(tokenAmount || '1000', decimals)
     const pairAmt = parseUnits(pairAmount || '1000', pairDecimals)
 
-    const poolKey = buildPoolKey(projectToken, pairTokenAddr, selectedFeeTier)
+    const basePoolKey = buildPoolKey(projectToken, pairTokenAddr, selectedFeeTier)
+
+    // Per-user pool isolation:
+    // Uniswap v4 pool identity includes fee. We derive a deterministic fee variant
+    // from the wallet address so each team gets a separate pool even with the same
+    // token pair + hook + tick spacing.
+    const addrInt = BigInt(address)
+    const feeOffset = Number(addrInt % 997n) + 1 // 1..997 (prime modulus to reduce clustering)
+    const uniqueFee = basePoolKey.fee + feeOffset
+    const poolKey = {
+      ...basePoolKey,
+      fee: uniqueFee,
+    }
     const poolId = computePoolId(poolKey)
     setComputedPoolId(poolId)
 
@@ -241,22 +253,20 @@ export function LaunchPool() {
 
       setTxStep('rsc-register')
       if (RISK_GUARD_RSC_ADDRESS !== '0x0000000000000000000000000000000000000000') {
-        try {
-          await switchToLasna()
-          const r6 = await registerMilestonesOnRSC(
-            poolId, address as `0x${string}`,
-            projectToken,
-            address as `0x${string}`,
-            scaledMilestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
-          )
-          setTxHashes(p => ({ ...p, rscRegister: r6.transactionHash }))
+        await switchToLasna()
+        const r6 = await registerMilestonesOnRSC(
+          poolId, address as `0x${string}`,
+          projectToken,
+          address as `0x${string}`,
+          scaledMilestones.map(m => ({ type: m.type, threshold: m.threshold, unlockPercentage: m.unlockPercentage })),
+        )
+        setTxHashes(p => ({ ...p, rscRegister: r6.transactionHash }))
 
-          const treasuryAddr = (treasuryAddress && isValidAddress(treasuryAddress)
-            ? treasuryAddress
-            : ZERO_ADDRESS) as `0x${string}`
-          const r6b = await setTreasuryAddressOnRSC(address as `0x${string}`, treasuryAddr)
-          setTxHashes(p => ({ ...p, rscTreasury: r6b.transactionHash }))
-        } catch (err) { console.warn('Lasna registerMilestones failed:', err) }
+        const treasuryAddr = (treasuryAddress && isValidAddress(treasuryAddress)
+          ? treasuryAddress
+          : ZERO_ADDRESS) as `0x${string}`
+        const r6b = await setTreasuryAddressOnRSC(address as `0x${string}`, treasuryAddr)
+        setTxHashes(p => ({ ...p, rscTreasury: r6b.transactionHash }))
       }
 
       setTxStep('rsc-wallets')

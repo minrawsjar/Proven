@@ -174,6 +174,13 @@ contract RiskGuardRSC is AbstractReactive {
     /// @notice treasury wallet/contract address → team address (nullable, optional)
     mapping(address => address) public treasuryToTeam;
 
+    /// @notice Per-team baseline snapshots for PoolMetricsUpdated.
+    ///         Milestones are evaluated on growth since baseline, not on absolute historical totals.
+    mapping(address => bool) public milestoneBaselineInitialized;
+    mapping(address => uint256) public baselineTvlByTeam;
+    mapping(address => uint256) public baselineVolByTeam;
+    mapping(address => uint256) public baselineUsersByTeam;
+
     /// @notice Track total react() calls and callbacks for frontend monitoring
     uint256 public totalReactCalls;
     uint256 public totalCallbacks;
@@ -425,6 +432,12 @@ contract RiskGuardRSC is AbstractReactive {
         cfg.deployer  = team; // deployer = team address (auto-detected from event sender)
         cfg.isIndexed = true;
 
+        // Reset milestone baselines for this team. First PoolMetricsUpdated after index sets baseline.
+        milestoneBaselineInitialized[team] = false;
+        baselineTvlByTeam[team] = 0;
+        baselineVolByTeam[team] = 0;
+        baselineUsersByTeam[team] = 0;
+
         poolToTeam[poolId]   = team;
         walletToTeam[team]   = team; // deployer wallet → team
 
@@ -464,17 +477,31 @@ contract RiskGuardRSC is AbstractReactive {
 
         emit DebugMilestoneMetrics(team, tvl, cumulativeVol, uniqueUsers);
 
+        // First metrics event after team registration is used as baseline.
+        // This avoids auto-unlocking from pre-existing pool history.
+        if (!milestoneBaselineInitialized[team]) {
+            milestoneBaselineInitialized[team] = true;
+            baselineTvlByTeam[team] = tvl;
+            baselineVolByTeam[team] = cumulativeVol;
+            baselineUsersByTeam[team] = uniqueUsers;
+            return;
+        }
+
+        uint256 tvlDelta = tvl > baselineTvlByTeam[team] ? tvl - baselineTvlByTeam[team] : 0;
+        uint256 volDelta = cumulativeVol > baselineVolByTeam[team] ? cumulativeVol - baselineVolByTeam[team] : 0;
+        uint256 usersDelta = uniqueUsers > baselineUsersByTeam[team] ? uniqueUsers - baselineUsersByTeam[team] : 0;
+
         for (uint256 i = 0; i < 3; i++) {
             MilestoneData storage m = cfg.milestones[i];
             if (m.complete) continue;
 
             bool met = false;
             if (m.conditionType == CONDITION_TVL) {
-                met = tvl >= m.threshold;
+                met = tvlDelta >= m.threshold;
             } else if (m.conditionType == CONDITION_VOL) {
-                met = cumulativeVol >= m.threshold;
+                met = volDelta >= m.threshold;
             } else if (m.conditionType == CONDITION_USERS) {
-                met = uniqueUsers >= m.threshold;
+                met = usersDelta >= m.threshold;
             }
 
             if (met) {
@@ -815,6 +842,12 @@ contract RiskGuardRSC is AbstractReactive {
         cfg.deployer   = deployer == address(0) ? team : deployer;
         cfg.isIndexed  = true;
         cfg.totalUnlockedPct = 0;
+
+        // Reset baseline so first metrics event after (re)registration snapshots the starting point.
+        milestoneBaselineInitialized[team] = false;
+        baselineTvlByTeam[team] = 0;
+        baselineVolByTeam[team] = 0;
+        baselineUsersByTeam[team] = 0;
 
         poolToTeam[poolId] = team;
         walletToTeam[team] = team;

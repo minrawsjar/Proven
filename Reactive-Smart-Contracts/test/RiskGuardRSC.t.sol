@@ -123,7 +123,11 @@ contract RiskGuardRSCTest is Test {
     // ──────────────────────────────────────────────────────────────
 
     function test_milestoneUnlock_singleMilestone() public {
+        // First metrics event sets baseline only
         rsc.react(_buildMetricsLog(1_000_000, 100_000, 10));
+
+        // Second metrics event crosses TVL threshold relative to baseline
+        rsc.react(_buildMetricsLog(2_000_000, 100_000, 10));
 
         assertEq(rsc.getTotalUnlockedPct(TEAM), 34);
         assertTrue(rsc.isMilestoneComplete(TEAM, 0));
@@ -132,7 +136,10 @@ contract RiskGuardRSCTest is Test {
     }
 
     function test_milestoneUnlock_allAtOnce() public {
-        rsc.react(_buildMetricsLog(2_000_000, 5_000_000, 1_000));
+        // Baseline
+        rsc.react(_buildMetricsLog(1_000_000, 100_000, 10));
+        // Large growth from baseline unlocks all milestones
+        rsc.react(_buildMetricsLog(2_500_000, 5_200_000, 1_100));
 
         assertEq(rsc.getTotalUnlockedPct(TEAM), 100);
         assertTrue(rsc.isMilestoneComplete(TEAM, 0));
@@ -141,12 +148,16 @@ contract RiskGuardRSCTest is Test {
     }
 
     function test_milestoneUnlock_progressive() public {
-        // First: only TVL
+        // Baseline snapshot
         rsc.react(_buildMetricsLog(1_000_000, 0, 0));
+        assertEq(rsc.getTotalUnlockedPct(TEAM), 0);
+
+        // First unlock: only TVL delta
+        rsc.react(_buildMetricsLog(2_000_000, 0, 0));
         assertEq(rsc.getTotalUnlockedPct(TEAM), 34);
 
         // Second: + volume
-        rsc.react(_buildMetricsLog(1_500_000, 5_000_000, 100));
+        rsc.react(_buildMetricsLog(2_000_000, 5_000_000, 100));
         assertEq(rsc.getTotalUnlockedPct(TEAM), 67);
 
         // Third: + users
@@ -155,7 +166,8 @@ contract RiskGuardRSCTest is Test {
     }
 
     function test_milestoneUnlock_noRegression() public {
-        rsc.react(_buildMetricsLog(2_000_000, 5_000_000, 1_000));
+        rsc.react(_buildMetricsLog(1_000_000, 100_000, 10)); // baseline
+        rsc.react(_buildMetricsLog(2_500_000, 5_200_000, 1_100));
         assertEq(rsc.getTotalUnlockedPct(TEAM), 100);
 
         // Metrics drop — milestones already complete, should NOT regress

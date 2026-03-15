@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAccount, useNetwork, useSwitchNetwork, usePublicClient, useWalletClient } from 'wagmi'
 import { getWalletClient as getCoreWalletClient, getPublicClient as getCorePublicClient } from '@wagmi/core'
-import { createPublicClient, http, parseAbiItem, decodeFunctionData, encodeAbiParameters, type Log } from 'viem'
+import { createPublicClient, http, parseAbiItem, decodeFunctionData, encodeAbiParameters, encodeFunctionData, type Log } from 'viem'
 import { useVerifyStore, type OnChainEvent } from '../store/verifyStore.ts'
 import { useRSCMonitorStore } from '../store/rscMonitorStore.ts'
 import { unichainSepolia, lasnaTestnet } from '../config/wagmi.ts'
@@ -986,6 +986,26 @@ export const useContractWrites = () => {
   const initializePool = useCallback(
     async (poolKey: PoolKeyTuple, sqrtPriceX96: bigint) => {
       if (!walletClient) throw new Error('Wallet not connected')
+
+      // Preflight via eth_call to avoid broadcasting a guaranteed-revert tx when
+      // the pool already exists. PoolAlreadyInitialized() selector = 0x7983c051.
+      try {
+        await publicClient.call({
+          to: POOL_MANAGER_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({
+            abi: poolManagerAbi,
+            functionName: 'initialize',
+            args: [poolKey, sqrtPriceX96],
+          }),
+          account: walletClient.account?.address,
+        })
+      } catch (err: any) {
+        const msg = String(err?.shortMessage ?? err?.message ?? '')
+        if (/PoolAlreadyInitialized|already initialized|0x7983c051/i.test(msg)) {
+          return { transactionHash: 'already-initialized' as const }
+        }
+        throw err
+      }
 
       const hash = await walletClient.writeContract({
         address: POOL_MANAGER_ADDRESS as `0x${string}`,

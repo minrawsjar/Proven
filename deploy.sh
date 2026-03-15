@@ -76,7 +76,9 @@ fi
 
 RSC_PRIVATE_KEY="$PRIVATE_KEY"
 
-if [[ "${HOOK_PRIVATE_KEY,,}" != "${RSC_PRIVATE_KEY,,}" ]]; then
+HOOK_PK_LC=$(echo "$HOOK_PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
+RSC_PK_LC=$(echo "$RSC_PRIVATE_KEY" | tr '[:upper:]' '[:lower:]')
+if [[ "$HOOK_PK_LC" != "$RSC_PK_LC" ]]; then
     fail "PRIVATE_KEY mismatch between proven-hook/.env and Reactive-Smart-Contracts/.env. Use the SAME key in both files."
 fi
 
@@ -173,7 +175,9 @@ echo "$CALLBACK_OUTPUT"
 CALLBACK_ADDR=$(echo "$CALLBACK_OUTPUT" | grep 'ProvenCallback deployed at:' | grep -o '0x[0-9a-fA-F]*' | head -1) || true
 
 if [[ -n "$CALLBACK_PREDICTED" && -n "$CALLBACK_ADDR" ]]; then
-    if [[ "${CALLBACK_ADDR,,}" == "${CALLBACK_PREDICTED,,}" ]]; then
+    CALLBACK_ADDR_LC=$(echo "$CALLBACK_ADDR" | tr '[:upper:]' '[:lower:]')
+    CALLBACK_PREDICTED_LC=$(echo "$CALLBACK_PREDICTED" | tr '[:upper:]' '[:lower:]')
+    if [[ "$CALLBACK_ADDR_LC" == "$CALLBACK_PREDICTED_LC" ]]; then
         ok "ProvenCallback address matches prediction! ✓"
     else
         warn "ProvenCallback address DOES NOT match prediction!"
