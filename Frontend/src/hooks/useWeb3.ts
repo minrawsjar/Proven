@@ -92,6 +92,33 @@ const positionRegisteredEvent = parseAbiItem(
   'event PositionRegistered(address indexed team, address indexed tokenAddr, bytes32 indexed poolId)',
 )
 
+const MAX_LOG_BLOCK_RANGE = 9_500n
+
+const getLogsChunked = async (
+  client: typeof lasnaClient | typeof unichainClient,
+  params: Parameters<typeof lasnaClient.getLogs>[0],
+  fromBlock: bigint,
+  toBlock: bigint,
+) => {
+  if (toBlock < fromBlock) return []
+
+  const out: Awaited<ReturnType<typeof lasnaClient.getLogs>> = []
+  let cursor = fromBlock
+
+  while (cursor <= toBlock) {
+    const end = cursor + MAX_LOG_BLOCK_RANGE > toBlock ? toBlock : cursor + MAX_LOG_BLOCK_RANGE
+    const chunk = await client.getLogs({
+      ...params,
+      fromBlock: cursor,
+      toBlock: end,
+    } as Parameters<typeof lasnaClient.getLogs>[0])
+    out.push(...chunk)
+    cursor = end + 1n
+  }
+
+  return out
+}
+
 /** Small delay so MetaMask's internal nonce tracker can catch up between sequential TXs */
 const nonceSafeWait = (ms = 2500) => new Promise((r) => setTimeout(r, ms))
 
@@ -742,22 +769,41 @@ export const useRiskScoreTrace = (teamAddress?: string) => {
         const currentBlock = await lasnaClient.getBlockNumber()
         const fromBlock = currentBlock > 300_000n ? currentBlock - 300_000n : 0n
 
-        const [signalLogs, scoreLogs] = await Promise.all([
-          lasnaClient.getLogs({
-            address: RISK_GUARD_RSC_ADDRESS,
-            event: signalTriggeredEvent,
-            args: { team: addr },
+        const [rawSignalLogs, rawScoreLogs] = await Promise.all([
+          getLogsChunked(
+            lasnaClient,
+            {
+              address: RISK_GUARD_RSC_ADDRESS,
+              event: signalTriggeredEvent,
+              args: { team: addr },
+            },
             fromBlock,
-            toBlock: currentBlock,
-          }),
-          lasnaClient.getLogs({
-            address: RISK_GUARD_RSC_ADDRESS,
-            event: riskScoreUpdatedEvent,
-            args: { team: addr },
+            currentBlock,
+          ),
+          getLogsChunked(
+            lasnaClient,
+            {
+              address: RISK_GUARD_RSC_ADDRESS,
+              event: riskScoreUpdatedEvent,
+              args: { team: addr },
+            },
             fromBlock,
-            toBlock: currentBlock,
-          }),
+            currentBlock,
+          ),
         ])
+
+        const signalLogs = rawSignalLogs as Array<{
+          transactionHash: `0x${string}` | null
+          blockNumber: bigint | null
+          logIndex: number | null
+          args: { signalId?: number | bigint; points?: number | bigint }
+        }>
+        const scoreLogs = rawScoreLogs as Array<{
+          transactionHash: `0x${string}` | null
+          blockNumber: bigint | null
+          logIndex: number | null
+          args: { score?: number | bigint; tier?: number | bigint }
+        }>
 
         const byTx = new Map<string, {
           txHash: string
