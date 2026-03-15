@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVerifyStore } from '../store/verifyStore.ts'
-import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling, useRugSignals, useMilestoneLockState, useMilestoneConfig, useContractWrites } from '../hooks/useWeb3.ts'
+import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling, useRugSignals, useMilestoneLockState, useMilestoneConfig, useContractWrites, useRiskScoreTrace } from '../hooks/useWeb3.ts'
 import { isValidAddress, formatAddress } from '../utils/format.ts'
 import { SIGNAL_LABELS, UNICHAIN_EXPLORER, LASNA_EXPLORER, POOL_SWAP_TEST_ADDRESS } from '../config/constants.ts'
 import { buildPoolKey } from '../utils/pool.ts'
@@ -43,6 +43,7 @@ export function InvestorDashboard() {
   const { data: positionData, loading: posLoading, error: posError, resolvedTeam } = usePositionData(viewAddress || undefined)
   const readAddress = resolvedTeam || viewAddress
   const { score: riskScore, tier: riskTier } = useRiskScore(readAddress || undefined)
+  const { trace: riskScoreTrace, loading: riskTraceLoading } = useRiskScoreTrace(readAddress || undefined)
   const { occurredSignals, lastTxBySignal, triggerMetaBySignal } = useRugSignals(readAddress || undefined)
   const { lockedMilestones, unlockedMilestones, unlockTxByMilestone } = useMilestoneLockState(readAddress || undefined)
   const { milestones: configuredMilestones, loading: milestoneConfigLoading, error: milestoneConfigError } = useMilestoneConfig(readAddress || undefined)
@@ -602,6 +603,51 @@ export function InvestorDashboard() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+
+                <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+                  <h3 className="font-black uppercase text-lg mb-4 border-b-4 border-black dark:border-white pb-2 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5" /> Risk Score Change Trace
+                  </h3>
+                  <p className="font-mono text-[11px] mb-3 text-gray-500 dark:text-gray-400">
+                    Shows why score changed and the exact Lasna tx that caused it.
+                  </p>
+
+                  {riskTraceLoading ? (
+                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">Loading trace...</p>
+                  ) : riskScoreTrace.length === 0 ? (
+                    <p className="font-mono text-xs text-gray-500 dark:text-gray-400">No score-change events found for this team yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                      {riskScoreTrace.map((item) => {
+                        const tierLabel = item.tier === null ? 'N/A' : item.tier === 0 ? 'SAFE' : item.tier === 1 ? 'WATCH' : item.tier === 2 ? 'ALERT' : 'RAGE'
+                        return (
+                          <div key={`${item.txHash}-${item.blockNumber.toString()}`} className="border-2 border-black dark:border-white p-3 bg-gray-50 dark:bg-[#0A0A0A]">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-black text-[11px] uppercase">
+                                Score: {item.score ?? '—'} · Tier: {tierLabel}
+                              </p>
+                              <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">Block {item.blockNumber.toString()}</span>
+                            </div>
+                            <p className="font-mono text-[11px] mt-1">{item.reason}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">
+                                {item.timestamp ? new Date(item.timestamp).toLocaleString() : 'Time unavailable'}
+                              </span>
+                              <a
+                                href={`${LASNA_EXPLORER}/tx/${item.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] inline-flex items-center gap-1 hover:text-[#DFFF00]"
+                              >
+                                tx <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

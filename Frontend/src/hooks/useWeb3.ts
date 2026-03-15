@@ -12,6 +12,7 @@ import {
   RISK_GUARD_RSC_ADDRESS,
   LASNA_RPC,
   UNICHAIN_RPC,
+  SIGNAL_LABELS,
   CONDITION_TYPE_MAP,
   POOL_MANAGER_ADDRESS,
   POOL_MODIFY_LIQUIDITY_TEST_ADDRESS,
@@ -77,6 +78,10 @@ const pauseWithdrawalsRelayedEvent = parseAbiItem(
 
 const signalTriggeredEvent = parseAbiItem(
   'event SignalTriggered(address indexed team, uint8 signalId, uint16 points)',
+)
+
+const riskScoreUpdatedEvent = parseAbiItem(
+  'event RiskScoreUpdated(address indexed team, uint16 score, uint8 tier)',
 )
 
 const milestoneUnlockedEvent = parseAbiItem(
@@ -706,6 +711,157 @@ export const useMilestoneLockState = (teamAddress?: string) => {
   }, [teamAddress])
 
   return { lockedMilestones, unlockedMilestones, unlockTxByMilestone }
+}
+
+export interface RiskScoreTraceItem {
+  txHash: string
+  blockNumber: bigint
+  timestamp?: number
+  score: number | null
+  tier: number | null
+  signals: Array<{ id: number; points: number }>
+  reason: string
+}
+
+export const useRiskScoreTrace = (teamAddress?: string) => {
+  const [trace, setTrace] = useState<RiskScoreTraceItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!teamAddress) {
+      setTrace([])
+      return
+    }
+
+    let cancelled = false
+    const addr = teamAddress as `0x${string}`
+
+    const fetch = async () => {
+      setLoading(true)
+      try {
+        const currentBlock = await lasnaClient.getBlockNumber()
+        const fromBlock = currentBlock > 300_000n ? currentBlock - 300_000n : 0n
+
+        const [signalLogs, scoreLogs] = await Promise.all([
+          lasnaClient.getLogs({
+            address: RISK_GUARD_RSC_ADDRESS,
+            event: signalTriggeredEvent,
+            args: { team: addr },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+          lasnaClient.getLogs({
+            address: RISK_GUARD_RSC_ADDRESS,
+            event: riskScoreUpdatedEvent,
+            args: { team: addr },
+            fromBlock,
+            toBlock: currentBlock,
+          }),
+        ])
+
+        const byTx = new Map<string, {
+          txHash: string
+          blockNumber: bigint
+          score: number | null
+          tier: number | null
+          signals: Array<{ id: number; points: number }>
+          maxLogIndex: number
+        }>()
+
+        for (const log of scoreLogs) {
+          if (!log.transactionHash || log.blockNumber == null || log.logIndex == null) continue
+          byTx.set(log.transactionHash, {
+            txHash: log.transactionHash,
+            blockNumber: log.blockNumber,
+            score: Number(log.args.score ?? 0),
+            tier: Number(log.args.tier ?? 0),
+            signals: [],
+            maxLogIndex: log.logIndex,
+          })
+        }
+
+        for (const log of signalLogs) {
+          if (!log.transactionHash || log.blockNumber == null || log.logIndex == null) continue
+
+          const signalId = Number(log.args.signalId ?? 255)
+          const points = Number(log.args.points ?? 0)
+          const existing = byTx.get(log.transactionHash)
+
+          if (existing) {
+            existing.signals.push({ id: signalId, points })
+            if (log.logIndex > existing.maxLogIndex) existing.maxLogIndex = log.logIndex
+          } else {
+            byTx.set(log.transactionHash, {
+              txHash: log.transactionHash,
+              blockNumber: log.blockNumber,
+              score: null,
+              tier: null,
+              signals: [{ id: signalId, points }],
+              maxLogIndex: log.logIndex,
+            })
+          }
+        }
+
+        const blockTimestamps = new Map<bigint, number>()
+        const entries = Array.from(byTx.values())
+          .sort((a, b) => {
+            if (a.blockNumber === b.blockNumber) {
+              if (a.maxLogIndex === b.maxLogIndex) return 0
+              return a.maxLogIndex > b.maxLogIndex ? -1 : 1
+            }
+            return a.blockNumber > b.blockNumber ? -1 : 1
+          })
+          .slice(0, 20)
+
+        const enriched: RiskScoreTraceItem[] = []
+        for (const row of entries) {
+          let timestamp = blockTimestamps.get(row.blockNumber)
+          if (!timestamp) {
+            try {
+              const blk = await lasnaClient.getBlock({ blockNumber: row.blockNumber })
+              timestamp = Number(blk.timestamp) * 1000
+              blockTimestamps.set(row.blockNumber, timestamp)
+            } catch {
+              timestamp = undefined
+            }
+          }
+
+          const signalReason = row.signals
+            .sort((a, b) => a.id - b.id)
+            .map((s) => {
+              const key = `S${s.id + 1}`
+              const label = SIGNAL_LABELS?.[s.id] ?? `Signal ${s.id + 1}`
+              return `${key} ${label} (+${s.points})`
+            })
+
+          enriched.push({
+            txHash: row.txHash,
+            blockNumber: row.blockNumber,
+            timestamp,
+            score: row.score,
+            tier: row.tier,
+            signals: row.signals,
+            reason: signalReason.length > 0 ? signalReason.join(' · ') : 'Risk score recalculated',
+          })
+        }
+
+        if (!cancelled) setTrace(enriched)
+      } catch {
+        if (!cancelled) setTrace([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    fetch()
+    const interval = setInterval(fetch, 15_000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [teamAddress])
+
+  return { trace, loading }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════

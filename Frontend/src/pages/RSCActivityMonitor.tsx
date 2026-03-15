@@ -122,6 +122,7 @@ export function RSCActivityMonitor() {
     setStats,
     setIncomingEvents,
     setRSCResponses,
+    clear,
   } = useRSCMonitorStore()
 
   const [projectFilter, setProjectFilter] = useState('')
@@ -140,6 +141,44 @@ export function RSCActivityMonitor() {
     setProjectFilter(connectedAddress)
     didAutoSeedFilter.current = true
   }, [connectedAddress])
+
+  const q = projectFilter.trim().toLowerCase()
+  const isFiltered = q.length > 0
+
+  const filteredIncomingEvents = incomingEvents.filter((e) => {
+    if (!isFiltered) return true
+    return (
+      e.fromAddress.toLowerCase().includes(q) ||
+      e.eventName.toLowerCase().includes(q) ||
+      e.value.toLowerCase().includes(q) ||
+      e.txHash.toLowerCase().includes(q)
+    )
+  })
+
+  const filteredRSCResponses = rscResponses.filter((r) => {
+    if (!isFiltered) return true
+    return (
+      r.projectAddress.toLowerCase().includes(q) ||
+      r.conditionChecked.toLowerCase().includes(q) ||
+      r.actionTaken.toLowerCase().includes(q) ||
+      (r.callbackTxHash ?? '').toLowerCase().includes(q)
+    )
+  })
+
+  const filteredCallbacks = filteredRSCResponses.filter((r) => {
+    const action = r.actionTaken.toLowerCase()
+    return action.includes('callback') || action.includes('dispatch')
+  }).length
+
+  const filteredUnlocks = filteredRSCResponses.filter((r) => {
+    const action = r.actionTaken.toLowerCase()
+    return action.includes('unlock')
+  }).length
+
+  const filteredExtensions = filteredRSCResponses.filter((r) => {
+    const action = r.actionTaken.toLowerCase()
+    return action.includes('extend') || action.includes('lock')
+  }).length
 
   /* ── Direct polling for Unichain Hook events ── */
   useEffect(() => {
@@ -313,10 +352,10 @@ export function RSCActivityMonitor() {
   }, [incomingEvents.length, rscResponses.length, autoScroll])
 
   const statCards = [
-    { label: 'React() Calls', value: stats.totalReactCalls, icon: Zap },
-    { label: 'Callbacks Sent', value: stats.totalCallbacksDispatched, icon: ArrowRight },
-    { label: 'Milestones Unlocked', value: stats.totalMilestonesUnlocked, icon: Layers },
-    { label: 'Lock Extensions', value: stats.totalLockExtensionsApplied, icon: AlertTriangle },
+    { label: 'React() Calls', value: isFiltered ? filteredRSCResponses.length : stats.totalReactCalls, icon: Zap },
+    { label: 'Callbacks Sent', value: isFiltered ? filteredCallbacks : stats.totalCallbacksDispatched, icon: ArrowRight },
+    { label: 'Milestones Unlocked', value: isFiltered ? filteredUnlocks : stats.totalMilestonesUnlocked, icon: Layers },
+    { label: 'Lock Extensions', value: isFiltered ? filteredExtensions : stats.totalLockExtensionsApplied, icon: AlertTriangle },
   ]
 
   return (
@@ -378,7 +417,10 @@ export function RSCActivityMonitor() {
             AUTO-SCROLL {autoScroll ? 'ON' : 'OFF'}
           </button>
           <button
-            onClick={() => { setIncomingEvents([]); setRSCResponses([]) }}
+            onClick={() => {
+              clear()
+              setProjectFilter('')
+            }}
             className="border-4 border-[#FF3333] px-5 py-3 font-bold uppercase text-sm bg-white dark:bg-[#111] text-[#FF3333] shadow-[4px_4px_0px_0px_rgba(255,51,51,1)] hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(255,51,51,1)] active:translate-y-0 active:shadow-none transition-all"
           >
             CLEAR
@@ -396,7 +438,7 @@ export function RSCActivityMonitor() {
                 <p className="font-mono text-[10px] text-gray-700">VestingHook · Chain 1301</p>
               </div>
               <span className="ml-auto bg-black text-[#DFFF00] font-mono text-xs px-3 py-1 font-bold">
-                {incomingEvents.length} EVENTS
+                {filteredIncomingEvents.length} EVENTS
               </span>
             </div>
             <div ref={leftRef} className="h-96 overflow-y-auto bg-white dark:bg-[#0A0A0A]">
@@ -406,16 +448,7 @@ export function RSCActivityMonitor() {
                 </div>
               ) : (
                 <div className="divide-y-2 divide-black dark:divide-white">
-                  {incomingEvents.filter((e) => {
-                    if (!projectFilter) return true
-                    const q = projectFilter.toLowerCase()
-                    return (
-                      e.fromAddress.toLowerCase().includes(q) ||
-                      e.eventName.toLowerCase().includes(q) ||
-                      e.value.toLowerCase().includes(q) ||
-                      e.txHash.toLowerCase().includes(q)
-                    )
-                  }).map((evt) => (
+                  {filteredIncomingEvents.map((evt) => (
                     <div key={evt.id} className="p-3 hover:bg-gray-50 dark:hover:bg-[#111] transition font-mono text-xs">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`px-2 py-0.5 border-2 border-black dark:border-white font-black text-[10px] ${evt.eventName === 'PoolMetricsUpdated' ? 'bg-[#DFFF00] text-black' : evt.eventName === 'CrashDetected' ? 'bg-[#FF3333] text-white' : evt.eventName === 'PositionRegistered' ? 'bg-blue-400 text-black' : 'bg-gray-200 dark:bg-[#1A1A1A]'}`}>{evt.eventName}</span>
@@ -448,7 +481,7 @@ export function RSCActivityMonitor() {
                 <p className="font-mono text-[10px] text-gray-400">RiskGuardRSC · Chain 5318007</p>
               </div>
               <span className="ml-auto bg-[#DFFF00] text-black font-mono text-xs px-3 py-1 font-bold">
-                {rscResponses.length} RESPONSES
+                {filteredRSCResponses.length} RESPONSES
               </span>
             </div>
             <div ref={rightRef} className="h-96 overflow-y-auto bg-white dark:bg-[#0A0A0A]">
@@ -458,16 +491,7 @@ export function RSCActivityMonitor() {
                 </div>
               ) : (
                 <div className="divide-y-2 divide-black dark:divide-white">
-                  {rscResponses.filter((r) => {
-                    if (!projectFilter) return true
-                    const q = projectFilter.toLowerCase()
-                    return (
-                      r.projectAddress.toLowerCase().includes(q) ||
-                      r.conditionChecked.toLowerCase().includes(q) ||
-                      r.actionTaken.toLowerCase().includes(q) ||
-                      (r.callbackTxHash ?? '').toLowerCase().includes(q)
-                    )
-                  }).map((res) => (
+                  {filteredRSCResponses.map((res) => (
                     <div key={res.id} className="p-3 hover:bg-gray-50 dark:hover:bg-[#111] transition font-mono text-xs">
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`px-2 py-0.5 border-2 border-black dark:border-white font-black text-[10px] ${res.result === 'TRIGGERED' ? 'bg-[#FF3333] text-white' : 'bg-gray-200 dark:bg-[#1A1A1A]'}`}>
