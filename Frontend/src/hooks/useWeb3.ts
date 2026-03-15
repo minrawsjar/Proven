@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAccount, useNetwork, useSwitchNetwork, usePublicClient, useWalletClient } from 'wagmi'
 import { getWalletClient as getCoreWalletClient, getPublicClient as getCorePublicClient } from '@wagmi/core'
-import { createPublicClient, http, parseAbiItem, decodeFunctionData, type Log } from 'viem'
+import { createPublicClient, http, parseAbiItem, decodeFunctionData, encodeAbiParameters, type Log } from 'viem'
 import { useVerifyStore, type OnChainEvent } from '../store/verifyStore.ts'
 import { useRSCMonitorStore } from '../store/rscMonitorStore.ts'
 import { unichainSepolia, lasnaTestnet } from '../config/wagmi.ts'
-import { vestingHookAbi, riskGuardRSCAbi, erc20Abi, poolManagerAbi, poolModifyLiquidityTestAbi } from '../config/contracts.ts'
+import { vestingHookAbi, riskGuardRSCAbi, erc20Abi, poolManagerAbi, poolModifyLiquidityTestAbi, poolSwapTestAbi } from '../config/contracts.ts'
 import {
   VESTING_HOOK_ADDRESS,
   CALLBACK_RECEIVER_ADDRESS,
@@ -15,6 +15,7 @@ import {
   CONDITION_TYPE_MAP,
   POOL_MANAGER_ADDRESS,
   POOL_MODIFY_LIQUIDITY_TEST_ADDRESS,
+  POOL_SWAP_TEST_ADDRESS,
 } from '../config/constants.ts'
 import {
   buildPoolKey,
@@ -1033,6 +1034,52 @@ export const useContractWrites = () => {
     [walletClient, publicClient],
   )
 
+  /** Swap via PoolSwapTest (public interaction path for demo pools) */
+  const swapInPool = useCallback(
+    async (
+      poolKey: PoolKeyTuple,
+      tokenIn: `0x${string}`,
+      amountIn: bigint,
+    ) => {
+      if (!walletClient) throw new Error('Wallet not connected')
+      if (!walletClient.account?.address) throw new Error('No wallet account selected')
+      if (amountIn <= 0n) throw new Error('Swap amount must be greater than 0')
+
+      const zeroForOne = poolKey.currency0.toLowerCase() === tokenIn.toLowerCase()
+      const MIN_SQRT_RATIO_PLUS_ONE = 4295128740n
+      const MAX_SQRT_RATIO_MINUS_ONE = 1461446703485210103287273052203988822378723970341n
+
+      const hookData = encodeAbiParameters(
+        [{ name: 'trader', type: 'address' }],
+        [walletClient.account.address as `0x${string}`],
+      )
+
+      const hash = await walletClient.writeContract({
+        address: POOL_SWAP_TEST_ADDRESS as `0x${string}`,
+        abi: poolSwapTestAbi,
+        functionName: 'swap',
+        args: [
+          poolKey,
+          {
+            zeroForOne,
+            amountSpecified: -amountIn,
+            sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_RATIO_PLUS_ONE : MAX_SQRT_RATIO_MINUS_ONE,
+          },
+          {
+            takeClaims: false,
+            settleUsingBurn: false,
+          },
+          hookData,
+        ],
+      })
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+      await nonceSafeWait()
+      return receipt
+    },
+    [walletClient, publicClient],
+  )
+
   /** Switch wallet to Lasna testnet (5318007) for RSC interactions */
   const switchToLasna = useCallback(async () => {
     if (!switchNetworkAsync) throw new Error('switchNetwork not available')
@@ -1053,6 +1100,7 @@ export const useContractWrites = () => {
     approveToken,
     initializePool,
     addLiquidity,
+    swapInPool,
     switchToLasna,
     switchToUnichain,
   }

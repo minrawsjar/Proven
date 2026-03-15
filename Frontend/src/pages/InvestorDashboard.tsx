@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useVerifyStore } from '../store/verifyStore.ts'
-import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling, useRugSignals, useMilestoneLockState, useMilestoneConfig } from '../hooks/useWeb3.ts'
+import { useWallet, usePositionData, useRiskScore, useTokenInfo, useHookEventPolling, useRugSignals, useMilestoneLockState, useMilestoneConfig, useContractWrites } from '../hooks/useWeb3.ts'
 import { isValidAddress, formatAddress } from '../utils/format.ts'
-import { SIGNAL_LABELS, UNICHAIN_EXPLORER, LASNA_EXPLORER } from '../config/constants.ts'
+import { SIGNAL_LABELS, UNICHAIN_EXPLORER, LASNA_EXPLORER, POOL_SWAP_TEST_ADDRESS } from '../config/constants.ts'
+import { buildPoolKey } from '../utils/pool.ts'
+import { parseUnits } from 'viem'
 import { Search, Shield, Activity, AlertTriangle, Clock, Unlock, Lock, ChevronRight, ExternalLink, Rocket, Wallet, Eye, BarChart3 } from 'lucide-react'
 
 export function InvestorDashboard() {
@@ -14,6 +16,13 @@ export function InvestorDashboard() {
 
   /* ── Connected wallet ── */
   const { address: connectedAddress, isConnected } = useWallet()
+  const { isWrongNetwork, ensureCorrectNetwork } = useWallet()
+  const { approveToken, swapInPool } = useContractWrites()
+  const [publicSwapAmount, setPublicSwapAmount] = useState('1')
+  const [swapPending, setSwapPending] = useState(false)
+  const [swapError, setSwapError] = useState<string | null>(null)
+  const [swapTx, setSwapTx] = useState<string | null>(null)
+  const UNICHAIN_USDC = '0x11aFfEac94B440C3c332813450db66fb3285BFB2' as `0x${string}`
 
   /* ── View address = searched or route ── */
   const viewAddress = selectedAddress || routeAddress
@@ -74,6 +83,47 @@ export function InvestorDashboard() {
       setSearchInput(connectedAddress)
       setSelectedAddress(connectedAddress)
       navigate(`/verify/${connectedAddress}`)
+    }
+  }
+
+  const handlePublicSwap = async () => {
+    if (!isConnected || !connectedAddress) {
+      setSwapError('Connect wallet to submit a swap')
+      return
+    }
+    if (!positionData?.tokenAddr || positionData.tokenAddr === '0x0000000000000000000000000000000000000000') {
+      setSwapError('No valid pool token found for this team')
+      return
+    }
+
+    if (isWrongNetwork) {
+      ensureCorrectNetwork()
+      setSwapError('Switched network request sent. Confirm Unichain Sepolia in wallet and retry.')
+      return
+    }
+
+    let amountIn: bigint
+    try {
+      amountIn = parseUnits(publicSwapAmount || '1', 6)
+      if (amountIn <= 0n) throw new Error('invalid amount')
+    } catch {
+      setSwapError('Enter a valid USDC amount')
+      return
+    }
+
+    setSwapPending(true)
+    setSwapError(null)
+    setSwapTx(null)
+
+    try {
+      const poolKey = buildPoolKey(UNICHAIN_USDC, positionData.tokenAddr, 0.3)
+      await approveToken(UNICHAIN_USDC, POOL_SWAP_TEST_ADDRESS as `0x${string}`, amountIn)
+      const receipt = await swapInPool(poolKey, UNICHAIN_USDC, amountIn)
+      setSwapTx(receipt.transactionHash)
+    } catch (err: any) {
+      setSwapError(err?.shortMessage ?? err?.message ?? 'Swap failed')
+    } finally {
+      setSwapPending(false)
     }
   }
 
@@ -332,6 +382,42 @@ export function InvestorDashboard() {
         {/* Position Data */}
         {positionData && !posLoading && (
           <div className="space-y-6">
+
+            {/* Public interaction widget */}
+            <div className="bg-white dark:bg-[#111] border-4 border-black dark:border-white p-6 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)]">
+              <h3 className="font-black uppercase text-lg mb-4 border-b-4 border-black dark:border-white pb-2">Public Demo Swap</h3>
+              <p className="font-mono text-xs text-gray-500 dark:text-gray-400 mb-4">
+                Anyone can interact with this pool from this UI. This submits a real on-chain swap: USDC → project token.
+              </p>
+              <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+                <input
+                  className={`${inp} md:max-w-[220px]`}
+                  value={publicSwapAmount}
+                  onChange={(e) => setPublicSwapAmount(e.target.value)}
+                  placeholder="USDC amount"
+                />
+                <button
+                  onClick={handlePublicSwap}
+                  disabled={swapPending}
+                  className="font-bold uppercase tracking-wide border-4 border-black px-6 py-3 bg-[#DFFF00] text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:translate-y-0 active:translate-x-0 active:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {swapPending ? 'Swapping...' : 'Swap USDC → Token'}
+                </button>
+              </div>
+              {swapError && (
+                <p className="mt-3 font-mono text-xs text-[#FF3333]">{swapError}</p>
+              )}
+              {swapTx && (
+                <a
+                  href={`${UNICHAIN_EXPLORER}/tx/${swapTx}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1 font-mono text-xs hover:text-[#DFFF00]"
+                >
+                  Swap tx: {swapTx.slice(0, 10)}... <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
 
             {/* Top KPI Row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
