@@ -274,7 +274,8 @@ export function RSCActivityMonitor() {
         )
 
         const latestProbe = debugProbeLogs.length > 0 ? debugProbeLogs[debugProbeLogs.length - 1] : undefined
-        const reactCallsFromProbe = latestProbe ? Number(latestProbe.args.reactCalls ?? 0n) : 0
+        const latestProbeArgs = (latestProbe as { args?: { reactCalls?: bigint } } | undefined)?.args
+        const reactCallsFromProbe = Number(latestProbeArgs?.reactCalls ?? 0n)
         const resolvedReactCalls = Math.max(Number(reactCallsOnRsc), reactCallsFromProbe)
 
         setStats({
