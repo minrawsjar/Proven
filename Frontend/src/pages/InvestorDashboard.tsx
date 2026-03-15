@@ -31,16 +31,17 @@ export function InvestorDashboard() {
   )
 
   /* ── Searched address position ── */
-  const { data: positionData, loading: posLoading, error: posError } = usePositionData(viewAddress || undefined)
-  const { score: riskScore, tier: riskTier } = useRiskScore(viewAddress || undefined)
-  const { occurredSignals, lastTxBySignal, triggerMetaBySignal } = useRugSignals(viewAddress || undefined)
-  const { lockedMilestones, unlockedMilestones, unlockTxByMilestone } = useMilestoneLockState(viewAddress || undefined)
-  const { milestones: configuredMilestones, loading: milestoneConfigLoading, error: milestoneConfigError } = useMilestoneConfig(viewAddress || undefined)
+  const { data: positionData, loading: posLoading, error: posError, resolvedTeam } = usePositionData(viewAddress || undefined)
+  const readAddress = resolvedTeam || viewAddress
+  const { score: riskScore, tier: riskTier } = useRiskScore(readAddress || undefined)
+  const { occurredSignals, lastTxBySignal, triggerMetaBySignal } = useRugSignals(readAddress || undefined)
+  const { lockedMilestones, unlockedMilestones, unlockTxByMilestone } = useMilestoneLockState(readAddress || undefined)
+  const { milestones: configuredMilestones, loading: milestoneConfigLoading, error: milestoneConfigError } = useMilestoneConfig(readAddress || undefined)
   const tokenAddr = positionData?.tokenAddr
   const { info: tokenInfo } = useTokenInfo(
     tokenAddr && tokenAddr !== '0x0000000000000000000000000000000000000000' ? tokenAddr : undefined,
   )
-  useHookEventPolling(viewAddress || undefined)
+  useHookEventPolling(readAddress || undefined)
 
   /* ── Has a valid launched pool? ── */
   const hasMyPool = myPositionData && myPositionData.team !== '0x0000000000000000000000000000000000000000' && myPositionData.registeredAt > 0n
@@ -113,7 +114,20 @@ export function InvestorDashboard() {
   const unlockedMilestoneText = unlockedMilestones.length > 0 ? unlockedMilestones.map((m) => `M${m}`).join(', ') : 'None'
   const conditionLabel = (type: number) => type === 0 ? 'TVL' : type === 1 ? 'VOLUME' : type === 2 ? 'USERS' : 'UNKNOWN'
   const formatUsdcShort = (raw: bigint) => {
-    const whole = raw / 10n ** 18n
+    if (raw === 0n) return '$0'
+
+    let whole = raw
+
+    // Backward-compatible formatting for mixed threshold units:
+    // - 18 decimals (wei-like)
+    // - 6 decimals (USDC-like)
+    // - plain integer dollars
+    if (raw >= 10n ** 18n && raw % (10n ** 18n) === 0n) {
+      whole = raw / 10n ** 18n
+    } else if (raw >= 10n ** 6n && raw % (10n ** 6n) === 0n) {
+      whole = raw / 10n ** 6n
+    }
+
     if (whole >= 1_000_000_000n) return `$${(Number(whole / 100_000_000n) / 10).toFixed(1)}B`
     if (whole >= 1_000_000n) return `$${(Number(whole / 100_000n) / 10).toFixed(1)}M`
     if (whole >= 1_000n) return `$${(Number(whole / 100n) / 10).toFixed(1)}K`
@@ -291,6 +305,12 @@ export function InvestorDashboard() {
             >
               <Eye className="w-3 h-3" /> or view your own pool ({formatAddress(connectedAddress!)})
             </button>
+          )}
+
+          {resolvedTeam && viewAddress && resolvedTeam.toLowerCase() !== viewAddress.toLowerCase() && (
+            <p className="mt-3 font-mono text-xs text-[#DFFF00]">
+              Resolved this contract address to team wallet {formatAddress(resolvedTeam)} for dashboard reads.
+            </p>
           )}
         </div>
 

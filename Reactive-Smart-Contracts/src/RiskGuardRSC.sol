@@ -837,6 +837,31 @@ contract RiskGuardRSC is AbstractReactive {
     }
 
     /**
+     * @notice Demo/admin helper: force-dispatch an unlock callback for a specific milestone.
+     * @dev Useful when demo pools are not swap-initialized yet but UI needs partial unlock state.
+     */
+    function forceAuthorizeUnlock(address team, uint8 milestoneId) external onlyOwner {
+        require(milestoneId < 3, "bad milestone");
+
+        TeamConfig storage cfg = configs[team];
+        if (!cfg.milestones[milestoneId].complete) {
+            cfg.milestones[milestoneId].complete = true;
+            cfg.totalUnlockedPct += cfg.milestones[milestoneId].unlockPct;
+        }
+
+        bytes memory payload = abi.encodeWithSignature(
+            "authorizeUnlock(address,address,uint8)",
+            address(0),
+            team,
+            milestoneId
+        );
+        emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
+        totalCallbacks++;
+        emit DebugUnlockCallbackQueued(team, milestoneId);
+        emit UnlockAuthorized(team, milestoneId);
+    }
+
+    /**
      * @notice Register a genesis wallet address for S2 signal detection.
      * @param team   Team address
      * @param wallet Genesis wallet address

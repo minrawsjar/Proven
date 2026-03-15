@@ -78,6 +78,22 @@ export function LaunchPool() {
       ? 'WETH'
       : pairTokenInfo?.symbol ?? (pairSelection === 'USDC' ? 'USDC' : 'CUSTOM')
 
+  const MIN_TVL_VOLUME_THRESHOLD = 100
+
+  const getMilestoneValidationError = () => {
+    for (const [idx, m] of milestones.entries()) {
+      if (!Number.isFinite(m.threshold) || m.threshold <= 0) {
+        return `Milestone ${idx + 1}: threshold must be greater than 0`
+      }
+
+      if ((m.type === 'TVL' || m.type === 'VOLUME') && m.threshold < MIN_TVL_VOLUME_THRESHOLD) {
+        return `Milestone ${idx + 1}: ${m.type} threshold must be at least ${MIN_TVL_VOLUME_THRESHOLD}`
+      }
+    }
+
+    return null
+  }
+
   if (milestones.length === 0) {
     setMilestones([
       { id: '1', type: 'TVL', threshold: 1000000, unlockPercentage: 25, isComplete: false },
@@ -108,7 +124,8 @@ export function LaunchPool() {
   }
 
   const totalUnlock = milestones.reduce((sum, m) => sum + m.unlockPercentage, 0)
-  const canProceedStep2 = totalUnlock === 100
+  const milestoneValidationError = getMilestoneValidationError()
+  const canProceedStep2 = totalUnlock === 100 && !milestoneValidationError
 
   /* ═══════════════ handleSign — all contract logic preserved exactly ═══════════════ */
   const handleSign = async () => {
@@ -138,6 +155,13 @@ export function LaunchPool() {
     const pairDecimals = pairSelection === 'WETH'
       ? 18
       : pairTokenInfo?.decimals ?? (pairSelection === 'USDC' ? 6 : 18)
+
+    if (milestoneValidationError) {
+      setTxError(milestoneValidationError)
+      setTxStep('error')
+      return
+    }
+
     const tokenAmt = parseUnits(tokenAmount || '1000', decimals)
     const pairAmt = parseUnits(pairAmount || '1000', pairDecimals)
 
@@ -177,6 +201,17 @@ export function LaunchPool() {
         if (m.type === 'TVL' || m.type === 'VOLUME') {
           const base = BigInt(Math.floor(m.threshold))
           const scaled = base * 10n ** BigInt(pairDecimals)
+
+          // Safety guard: reject suspiciously tiny on-chain thresholds
+          // that can auto-unlock immediately due to unit mismatch.
+          const minScaled = BigInt(MIN_TVL_VOLUME_THRESHOLD) * 10n ** BigInt(pairDecimals)
+          if (scaled < minScaled) {
+            throw new Error(
+              `${m.type} threshold too low after scaling (min ${MIN_TVL_VOLUME_THRESHOLD}). ` +
+              'Increase TVL/Volume threshold before signing.'
+            )
+          }
+
           return { type: m.type, threshold: Number(scaled), unlockPercentage: m.unlockPercentage }
         }
         // USERS stays as a plain integer
@@ -417,6 +452,7 @@ export function LaunchPool() {
             {totalUnlock < 100 && <div style={{ width: `${100 - totalUnlock}%` }} className="bg-gray-200 dark:bg-[#1A1A1A]" />}
           </div>
           {totalUnlock !== 100 && <p className="text-[#FF3333] text-xs mt-2 font-mono font-bold">Must equal exactly 100% to proceed</p>}
+          {milestoneValidationError && <p className="text-[#FF3333] text-xs mt-2 font-mono font-bold">{milestoneValidationError}</p>}
         </div>
 
         {/* Milestone Cards */}

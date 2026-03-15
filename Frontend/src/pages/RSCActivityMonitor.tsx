@@ -19,6 +19,7 @@ const unichainClient = createPublicClient({ transport: http(UNICHAIN_RPC) })
 const lasnaClient = createPublicClient({ transport: http(LASNA_RPC) })
 const MONITOR_LOOKBACK_BLOCKS = 5_000_000n
 const CALLBACK_LOOKBACK_BLOCKS = 300_000n
+const MAX_LOG_BLOCK_RANGE = 9_500n
 
 const debugReactProbeEvent = parseAbiItem(
   'event DebugReactProbe(address indexed rsc, uint256 reactCalls, uint256 topic0, uint256 sourceChainId)',
@@ -85,6 +86,31 @@ const decodePoolMetrics = (data: `0x${string}` | undefined): string => {
   }
 }
 
+const getLogsChunked = async (
+  client: any,
+  params: Record<string, any>,
+  fromBlock: bigint,
+  toBlock: bigint,
+): Promise<Log[]> => {
+  if (toBlock < fromBlock) return []
+
+  const out: Log[] = []
+  let cursor = fromBlock
+
+  while (cursor <= toBlock) {
+    const end = cursor + MAX_LOG_BLOCK_RANGE > toBlock ? toBlock : cursor + MAX_LOG_BLOCK_RANGE
+    const chunk = await client.getLogs({
+      ...params,
+      fromBlock: cursor,
+      toBlock: end,
+    })
+    out.push(...(chunk as Log[]))
+    cursor = end + 1n
+  }
+
+  return out
+}
+
 export function RSCActivityMonitor() {
   const {
     incomingEvents,
@@ -114,11 +140,12 @@ export function RSCActivityMonitor() {
         const currentBlock = await unichainClient.getBlockNumber()
         if (fromBlock === 0n) fromBlock = currentBlock > MONITOR_LOOKBACK_BLOCKS ? currentBlock - MONITOR_LOOKBACK_BLOCKS : 0n
 
-        const logs = await unichainClient.getLogs({
-          address: VESTING_HOOK_ADDRESS,
+        const logs = await getLogsChunked(
+          unichainClient,
+          { address: VESTING_HOOK_ADDRESS },
           fromBlock,
-          toBlock: currentBlock,
-        })
+          currentBlock,
+        )
         fromBlock = currentBlock + 1n
 
         for (const log of logs) {
@@ -159,11 +186,12 @@ export function RSCActivityMonitor() {
         const currentBlock = await lasnaClient.getBlockNumber()
         if (fromBlock === 0n) fromBlock = currentBlock > MONITOR_LOOKBACK_BLOCKS ? currentBlock - MONITOR_LOOKBACK_BLOCKS : 0n
 
-        const logs = await lasnaClient.getLogs({
-          address: RISK_GUARD_RSC_ADDRESS,
+        const logs = await getLogsChunked(
+          lasnaClient,
+          { address: RISK_GUARD_RSC_ADDRESS },
           fromBlock,
-          toBlock: currentBlock,
-        })
+          currentBlock,
+        )
         fromBlock = currentBlock + 1n
 
         let reactCalls = 0
@@ -234,13 +262,16 @@ export function RSCActivityMonitor() {
 
         // VM-side react() is surfaced via callback DebugReactProbe on Unichain.
         // Use this as source-of-truth if RN counter is zero.
-        const debugProbeLogs = await unichainClient.getLogs({
-          address: CALLBACK_RECEIVER_ADDRESS,
-          event: debugReactProbeEvent,
-          args: { rsc: RISK_GUARD_RSC_ADDRESS as `0x${string}` },
-          fromBlock: fromUniBlock,
-          toBlock: currentUniBlock,
-        })
+        const debugProbeLogs = await getLogsChunked(
+          unichainClient,
+          {
+            address: CALLBACK_RECEIVER_ADDRESS,
+            event: debugReactProbeEvent,
+            args: { rsc: RISK_GUARD_RSC_ADDRESS as `0x${string}` },
+          },
+          fromUniBlock,
+          currentUniBlock,
+        )
 
         const latestProbe = debugProbeLogs.length > 0 ? debugProbeLogs[debugProbeLogs.length - 1] : undefined
         const reactCallsFromProbe = latestProbe ? Number(latestProbe.args.reactCalls ?? 0n) : 0
