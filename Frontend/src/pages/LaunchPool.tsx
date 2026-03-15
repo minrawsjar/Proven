@@ -192,8 +192,19 @@ export function LaunchPool() {
       }
 
       setTxStep('init-pool')
-      const r3 = await initializePool(poolKey, sqrtPrice)
-      setTxHashes(p => ({ ...p, initPool: r3.transactionHash }))
+      try {
+        const r3 = await initializePool(poolKey, sqrtPrice)
+        setTxHashes(p => ({ ...p, initPool: r3.transactionHash }))
+      } catch (err: any) {
+        const msg = String(err?.shortMessage ?? err?.message ?? '')
+        const alreadyInitialized =
+          /already initialized|PoolAlreadyInitialized|execution reverted/i.test(msg)
+
+        if (!alreadyInitialized) throw err
+
+        // Pool was already initialized in a previous tx; continue with register + liquidity.
+        setTxHashes(p => ({ ...p, initPool: 'already-initialized' }))
+      }
 
       setTxStep('register')
       // Scale TVL/VOLUME thresholds to pair token decimals before sending on-chain
