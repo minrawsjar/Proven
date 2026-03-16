@@ -913,6 +913,28 @@ contract RiskGuardRSC is AbstractReactive {
     }
 
     /**
+     * @notice Demo/admin helper: force-set risk score and tier for a team.
+     * @dev Emits RiskScoreUpdated so the frontend trace picks it up.
+     */
+    function forceRiskScore(address team, uint16 score, uint8 tier) external onlyOwner {
+        TeamConfig storage cfg = configs[team];
+        if (cfg.team == address(0)) {
+            cfg.team = team;
+        }
+        cfg.riskScore = score;
+        cfg.lastDispatchedTier = tier;
+        emit RiskScoreUpdated(team, score, tier);
+    }
+
+    /**
+     * @notice Demo/admin helper: force-trigger a signal for a team.
+     * @dev Emits SignalTriggered so the frontend trace picks it up.
+     */
+    function forceSignalTriggered(address team, uint8 signalId, uint16 points) external onlyOwner {
+        emit SignalTriggered(team, signalId, points);
+    }
+
+    /**
      * @notice Demo/admin helper: force-dispatch an alert callback (pauseWithdrawals).
      * @dev Dispatches callback to ProvenCallback → VestingHook.pauseWithdrawals(team, pauseHours).
      */

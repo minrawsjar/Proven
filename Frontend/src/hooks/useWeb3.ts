@@ -700,23 +700,32 @@ export const useMilestoneLockState = (teamAddress?: string) => {
 
       try {
         const currentBlock = await unichainClient.getBlockNumber()
-        const fromBlock = currentBlock > 300_000n ? currentBlock - 300_000n : 0n
+        const windowSize = 9_500n
+        let cursor = currentBlock
 
-        const logs = await unichainClient.getLogs({
-          address: VESTING_HOOK_ADDRESS,
-          event: milestoneUnlockedEvent,
-          args: { team: addr },
-          fromBlock,
-          toBlock: currentBlock,
-        })
+        for (let chunk = 0; chunk < 60; chunk++) {
+          const fromBlock = cursor > windowSize ? cursor - windowSize : 0n
+          try {
+            const logs = await unichainClient.getLogs({
+              address: VESTING_HOOK_ADDRESS,
+              event: milestoneUnlockedEvent,
+              args: { team: addr },
+              fromBlock,
+              toBlock: cursor,
+            })
 
-        for (const log of logs) {
-          const milestoneId = Number(log.args.milestoneId ?? 255)
-          if (milestoneId >= 0 && milestoneId <= 2) {
-            const m = milestoneId + 1
-            unlocked.add(m)
-            if (log.transactionHash) unlockTx[`M${m}`] = log.transactionHash
-          }
+            for (const log of logs) {
+              const milestoneId = Number(log.args.milestoneId ?? 255)
+              if (milestoneId >= 0 && milestoneId <= 2) {
+                const m = milestoneId + 1
+                unlocked.add(m)
+                if (log.transactionHash) unlockTx[`M${m}`] = log.transactionHash
+              }
+            }
+          } catch { /* skip chunk */ }
+
+          if (unlocked.size === 3 || fromBlock === 0n) break
+          cursor = fromBlock - 1n
         }
       } catch {
         // Keep defaults when logs are unavailable.

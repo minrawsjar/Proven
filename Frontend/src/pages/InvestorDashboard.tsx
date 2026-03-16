@@ -197,11 +197,12 @@ export function InvestorDashboard() {
     : milestoneConfigLoading
       ? 'Loading milestone config...'
       : 'Awaiting milestone config'
+  const unlockedSet = new Set(unlockedMilestones)
   const milestoneCards = configuredMilestones.length === 3
     ? configuredMilestones.map((m, i) => ({
         key: i + 1,
         pct: m.unlockPct,
-        done: m.complete,
+        done: m.complete || unlockedSet.has(i + 1),
         sub: `${conditionLabel(m.conditionType)} ≥ ${formatMilestoneThreshold(m.conditionType, m.threshold)}`,
       }))
     : [30, 70, 100].map((m, i) => ({
