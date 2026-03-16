@@ -13,7 +13,7 @@ contract CounterTest is Test {
 
     function setUp() public {
         vault = new MockVaultManager();
-        hook = new VestingHookTestHelper(IPoolManager(address(1)), vault, address(0));
+        hook = new VestingHookTestHelper(IPoolManager(address(1)), vault, address(0), address(this));
     }
 
     function test_HookDeployed() public view {

@@ -42,6 +42,9 @@ contract VestingHook is BaseHook {
     ///         Only this address (ProvenCallback / RSC proxy) can call authorizeUnlock/extendLock/pauseWithdrawals.
     address public immutable RSC_AUTHORIZER;
 
+    /// @notice Deployer address — can also call RSC-gated functions for demo/admin.
+    address public immutable OWNER;
+
     /// @dev positions[team] = vesting position (team == 0 means not registered)
     mapping(address => VestingPosition) public positions;
     /// @dev poolToTeam[poolId] = team that registered for this pool
@@ -62,17 +65,19 @@ contract VestingHook is BaseHook {
 
     /// @notice Only the immutable RSC authorizer can call this function.
     modifier onlyRSC() {
-        if (msg.sender != RSC_AUTHORIZER) revert OnlyRSC();
+        if (msg.sender != RSC_AUTHORIZER && msg.sender != OWNER) revert OnlyRSC();
         _;
     }
 
     constructor(
         IPoolManager _manager,
         IVaultManager _vaultManager,
-        address _rscAuthorizer
+        address _rscAuthorizer,
+        address _owner
     ) BaseHook(_manager) {
         VAULT_MANAGER = _vaultManager;
         RSC_AUTHORIZER = _rscAuthorizer;
+        OWNER = _owner;
     }
 
     /// @inheritdoc BaseHook

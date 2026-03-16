@@ -84,7 +84,8 @@ contract DeployProvenScript is Script {
             abi.encode(
                 poolManager,
                 IVaultManager(predictedVault),
-                predictedCallback // RSC_AUTHORIZER
+                predictedCallback, // RSC_AUTHORIZER
+                deployer            // OWNER
             )
         );
 
@@ -122,7 +123,8 @@ contract DeployProvenScript is Script {
         VestingHook hook = new VestingHook{salt: salt}(
             poolManager,
             IVaultManager(address(vault)),
-            predictedCallback
+            predictedCallback,
+            deployer
         );
         require(address(hook) == hookAddr, "VestingHook address mismatch");
         console.log("[tx1] VestingHook:     ", address(hook));

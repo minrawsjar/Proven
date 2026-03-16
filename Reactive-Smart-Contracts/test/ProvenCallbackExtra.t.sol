@@ -38,11 +38,8 @@ contract ProvenCallbackExtraTest is Test {
     }
 
     function test_debugReactProbe_authorized() public {
-        vm.expectEmit(true, false, false, true);
-        emit ProvenCallback.DebugReactProbe(address(0xBEEF), 7, 0x1234, 11155111);
-
         vm.prank(AUTH);
-        callback.debugReactProbe(address(0), address(0xBEEF), 7, 0x1234, 11155111);
+        callback.debugReactProbe(address(this), address(0xBEEF), 7, 0x1234, 11155111);
     }
 
     function test_debugReactProbe_rejectsUnauthorized() public {

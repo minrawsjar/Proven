@@ -24,8 +24,8 @@ contract MockSystemService {
 contract RiskGuardRSCExtraTest is Test {
     RiskGuardRSC internal rsc;
 
-    uint256 constant ORIGIN_CHAIN = 11155111;
-    uint256 constant CALLBACK_CHAIN = 11155111;
+    uint256 constant ORIGIN_CHAIN = 1301;
+    uint256 constant CALLBACK_CHAIN = 1301;
 
     address constant TEAM = address(0xBEEF);
     address constant TOKEN = address(0xDEAD);
@@ -268,8 +268,8 @@ contract RiskGuardRSCRnOnlyTest is Test {
     RiskGuardRSC internal rsc;
     MockSystemService internal service;
 
-    uint256 constant ORIGIN_CHAIN = 11155111;
-    uint256 constant CALLBACK_CHAIN = 11155111;
+    uint256 constant ORIGIN_CHAIN = 1301;
+    uint256 constant CALLBACK_CHAIN = 1301;
     address constant SYSTEM_ADDR = 0x0000000000000000000000000000000000fffFfF;
 
     function setUp() public {

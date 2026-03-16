@@ -7,8 +7,8 @@ import {IVaultManager} from "./IVaultManager.sol";
 
 /// @notice Test-only VestingHook that skips hook address validation so it can be deployed to any address.
 contract VestingHookTestHelper is VestingHook {
-    constructor(IPoolManager _manager, IVaultManager _vaultManager, address _rscAuthorizer)
-        VestingHook(_manager, _vaultManager, _rscAuthorizer)
+    constructor(IPoolManager _manager, IVaultManager _vaultManager, address _rscAuthorizer, address _owner)
+        VestingHook(_manager, _vaultManager, _rscAuthorizer, _owner)
     {}
 
     /// @dev Override to skip validation when testing (deploy to any address).

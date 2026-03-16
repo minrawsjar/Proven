@@ -294,18 +294,6 @@ contract RiskGuardRSC is AbstractReactive {
     function react(LogRecord calldata log) external vmOnly {
         totalReactCalls++;
 
-        // Debug callback: surface VM-side values on destination chain for verification.
-        bytes memory debugPayload = abi.encodeWithSignature(
-            "debugReactProbe(address,address,uint256,uint256,uint256)",
-            address(0),
-            address(this),
-            totalReactCalls,
-            log.topic_0,
-            log.chain_id
-        );
-        emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, debugPayload);
-        emit DebugReactProbeCallbackQueued(totalReactCalls, log.topic_0, log.chain_id);
-
         emit DebugReactMeta(
             log.topic_0,
             log.topic_1,
@@ -711,7 +699,8 @@ contract RiskGuardRSC is AbstractReactive {
         cfg.lastDispatchedTier = tier;
 
         if (tier == TIER_SAFE) {
-            // 0-24: no action
+            // 0-24: reset tier so future risk episodes can re-dispatch
+            cfg.lastDispatchedTier = TIER_SAFE;
             return;
         } else if (tier == TIER_WATCH) {
             // 25-49: emit RiskElevated (no callback, frontend-only)
@@ -774,13 +763,21 @@ contract RiskGuardRSC is AbstractReactive {
     // ═══════════════════════════════════════════════════════════════════════════
 
     modifier onlyOwner() {
-        if (msg.sender != OWNER) revert OnlyOwner();
+        _checkOwner();
         _;
     }
 
+    function _checkOwner() internal view {
+        if (msg.sender != OWNER) revert OnlyOwner();
+    }
+
     modifier onlyOwnerOrTeam(address team) {
-        if (msg.sender != OWNER && msg.sender != team) revert OnlyOwnerOrTeam();
+        _checkOwnerOrTeam(team);
         _;
+    }
+
+    function _checkOwnerOrTeam(address team) internal view {
+        if (msg.sender != OWNER && msg.sender != team) revert OnlyOwnerOrTeam();
     }
 
     /**
@@ -898,6 +895,36 @@ contract RiskGuardRSC is AbstractReactive {
         totalCallbacks++;
         emit DebugUnlockCallbackQueued(team, milestoneId);
         emit UnlockAuthorized(team, milestoneId);
+    }
+
+    /**
+     * @notice Demo/admin helper: force-dispatch a rage-lock callback (extendLock 30 days).
+     * @dev Dispatches callback to ProvenCallback → VestingHook.extendLock(team, penaltyDays).
+     */
+    function forceExtendLock(address team, uint32 penaltyDays) external onlyOwner {
+        bytes memory payload = abi.encodeWithSignature(
+            "extendLock(address,address,uint32)",
+            address(0),
+            team,
+            penaltyDays
+        );
+        emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
+        totalCallbacks++;
+    }
+
+    /**
+     * @notice Demo/admin helper: force-dispatch an alert callback (pauseWithdrawals).
+     * @dev Dispatches callback to ProvenCallback → VestingHook.pauseWithdrawals(team, pauseHours).
+     */
+    function forcePauseWithdrawals(address team, uint32 pauseHours) external onlyOwner {
+        bytes memory payload = abi.encodeWithSignature(
+            "pauseWithdrawals(address,address,uint32)",
+            address(0),
+            team,
+            pauseHours
+        );
+        emit Callback(CALLBACK_CHAIN_ID, CALLBACK_ADDR, CALLBACK_GAS_LIMIT, payload);
+        totalCallbacks++;
     }
 
     /**

@@ -52,8 +52,8 @@ contract RiskGuardRSCTest is Test {
     ProvenCallback  callback;
     MockTimeLockHook hook;
 
-    uint256 constant ORIGIN_CHAIN   = 11155111; // Sepolia
-    uint256 constant CALLBACK_CHAIN = 11155111;
+    uint256 constant ORIGIN_CHAIN   = 1301; // Unichain Sepolia
+    uint256 constant CALLBACK_CHAIN = 1301;
 
     address constant TEAM      = address(0xBEEF);
     address constant TOKEN     = address(0xDeaD);
@@ -305,26 +305,52 @@ contract RiskGuardRSCTest is Test {
         assertEq(rsc.totalCallbacks(), callbacksBefore);
     }
 
+    function test_tierResetsAfterDecayToSafe() public {
+        _lockLP(TEAM, POOL_ID, 1000e18);
+
+        // Push to RAGE (S3=35 + S4=25 + combo=20 = 80)
+        rsc.react(_buildCrashLog(50));
+        rsc.react(_buildMetricsLog(100, 90, 1));
+        assertEq(rsc.getLastDispatchedTier(TEAM), 3); // TIER_RAGE
+
+        uint256 callbacksBefore = rsc.totalCallbacks();
+
+        // Warp 12 days — all signals fully decayed
+        vm.warp(block.timestamp + 12 days);
+
+        // Trigger a benign event to recalc score (low vol/tvl ratio → no S4)
+        rsc.react(_buildMetricsLog(1000, 100, 1));
+        assertEq(rsc.getRiskScore(TEAM), 0); // fully decayed
+        assertEq(rsc.getLastDispatchedTier(TEAM), 0); // TIER_SAFE — reset!
+
+        // Now push back to RAGE — should fire again
+        rsc.react(_buildCrashLog(50));
+        rsc.react(_buildMetricsLog(100, 90, 1));
+
+        assertEq(rsc.getLastDispatchedTier(TEAM), 3); // TIER_RAGE re-fires
+        assertGt(rsc.totalCallbacks(), callbacksBefore); // new callback emitted
+    }
+
     // ──────────────────────────────────────────────────────────────
     //                  CALLBACK CONTRACT TESTS
     // ──────────────────────────────────────────────────────────────
 
     function test_callback_authorizeUnlock() public {
-        callback.authorizeUnlock(address(0), TEAM, 1);
+        callback.authorizeUnlock(address(this), TEAM, 1);
 
         assertEq(hook.lastUnlockTeam(), TEAM);
         assertEq(hook.lastUnlockMilestoneId(), 1);
     }
 
     function test_callback_extendLock() public {
-        callback.extendLock(address(0), TEAM, 30);
+        callback.extendLock(address(this), TEAM, 30);
 
         assertEq(hook.lastExtendTeam(), TEAM);
         assertEq(hook.lastExtendPenaltyDays(), 30);
     }
 
     function test_callback_pauseWithdrawals() public {
-        callback.pauseWithdrawals(address(0), TEAM, 48);
+        callback.pauseWithdrawals(address(this), TEAM, 48);
 
         assertEq(hook.lastPauseTeam(), TEAM);
         assertEq(hook.lastPauseHours(), 48);
@@ -333,7 +359,7 @@ contract RiskGuardRSCTest is Test {
     function test_callback_rejectsUnauthorized() public {
         vm.prank(address(0xDEAD));
         vm.expectRevert("Authorized sender only");
-        callback.authorizeUnlock(address(0), TEAM, 0);
+        callback.authorizeUnlock(address(0xDEAD), TEAM, 0);
     }
 
     function test_callback_rejectsUnauthorized_extendLock() public {

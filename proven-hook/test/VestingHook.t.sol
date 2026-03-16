@@ -27,7 +27,7 @@ contract VestingHookTest is Test {
     function setUp() public {
         vault = new MockVaultManager();
         // 3-arg constructor: (IPoolManager, IVaultManager, address _rscAuthorizer)
-        hook = new VestingHookTestHelper(IPoolManager(POOL_MANAGER), vault, RSC_AUTHORIZER);
+        hook = new VestingHookTestHelper(IPoolManager(POOL_MANAGER), vault, RSC_AUTHORIZER, address(this));
         vault.setHook(address(hook));
         // Compute POOL_ID from the same key used in tests
         POOL_ID = _buildPoolKey().toId();

@@ -82,10 +82,10 @@ contract ProvenCallback is AbstractCallback {
      * @param milestoneId Which milestone (0, 1, or 2)
      */
     function authorizeUnlock(
-        address,         // rvm_id — injected by Reactive Network, not used
+        address rvm_id,
         address team,
         uint8   milestoneId
-    ) external authorizedSenderOnly {
+    ) external authorizedSenderOnly rvmIdOnly(rvm_id) {
         HOOK.authorizeUnlock(team, milestoneId);
         emit MilestoneUnlockRelayed(team, milestoneId);
     }
@@ -97,10 +97,10 @@ contract ProvenCallback is AbstractCallback {
      * @param penaltyDays Number of days to extend the lock (typically 30)
      */
     function extendLock(
-        address,         // rvm_id — injected by Reactive Network, not used
+        address rvm_id,
         address team,
         uint32  penaltyDays
-    ) external authorizedSenderOnly {
+    ) external authorizedSenderOnly rvmIdOnly(rvm_id) {
         HOOK.extendLock(team, penaltyDays);
         emit LockExtendRelayed(team, penaltyDays);
     }
@@ -112,10 +112,10 @@ contract ProvenCallback is AbstractCallback {
      * @param pauseHours Number of hours to pause withdrawals (typically 48)
      */
     function pauseWithdrawals(
-        address,         // rvm_id — injected by Reactive Network, not used
+        address rvm_id,
         address team,
         uint32  pauseHours
-    ) external authorizedSenderOnly {
+    ) external authorizedSenderOnly rvmIdOnly(rvm_id) {
         HOOK.pauseWithdrawals(team, pauseHours);
         emit PauseWithdrawalsRelayed(team, pauseHours);
     }
@@ -125,12 +125,12 @@ contract ProvenCallback is AbstractCallback {
      * @dev Helps verify ReactVM-side values on destination-chain events.
      */
     function debugReactProbe(
-        address,        // rvm_id — injected by Reactive Network, not used
+        address rvm_id,
         address rsc,
         uint256 reactCalls,
         uint256 topic0,
         uint256 sourceChainId
-    ) external authorizedSenderOnly {
+    ) external authorizedSenderOnly rvmIdOnly(rvm_id) {
         emit DebugReactProbe(rsc, reactCalls, topic0, sourceChainId);
     }
 }

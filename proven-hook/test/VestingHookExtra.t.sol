@@ -44,7 +44,7 @@ contract VestingHookExtraTest is Test {
     function setUp() public {
         mockManager = new MockPoolManagerState();
         vault = new MockVaultManager();
-        hook = new VestingHookTestHelper(IPoolManager(address(mockManager)), vault, RSC_AUTHORIZER);
+        hook = new VestingHookTestHelper(IPoolManager(address(mockManager)), vault, RSC_AUTHORIZER, address(this));
         vault.setHook(address(hook));
 
         key = PoolKey({

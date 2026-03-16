@@ -27,7 +27,7 @@ contract VestingHookFuzzTest is Test {
 
     function setUp() public {
         vault = new MockVaultManager();
-        hook = new VestingHookTestHelper(IPoolManager(POOL_MANAGER), vault, address(0xABCD));
+        hook = new VestingHookTestHelper(IPoolManager(POOL_MANAGER), vault, address(0xABCD), address(this));
         vault.setHook(address(hook));
 
         key = PoolKey({

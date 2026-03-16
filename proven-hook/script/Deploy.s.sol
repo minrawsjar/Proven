@@ -12,7 +12,7 @@ contract DeployScript is Script {
         IVaultManager vault = IVaultManager(vm.envAddress("VAULT_MANAGER"));
         address rscAuthorizer = vm.envAddress("RSC_AUTHORIZER");
         vm.startBroadcast();
-        new VestingHook(manager, vault, rscAuthorizer);
+        new VestingHook(manager, vault, rscAuthorizer, msg.sender);
         vm.stopBroadcast();
     }
 }
