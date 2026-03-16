@@ -770,10 +770,11 @@ export const useRiskScoreTrace = (teamAddress?: string) => {
     }
 
     let cancelled = false
+    let initialFetchDone = false
     const addr = teamAddress as `0x${string}`
 
     const fetch = async () => {
-      setLoading(true)
+      if (!initialFetchDone) setLoading(true)
       try {
         const currentBlock = await lasnaClient.getBlockNumber()
         const fromBlock = currentBlock > 300_000n ? currentBlock - 300_000n : 0n
@@ -900,9 +901,12 @@ export const useRiskScoreTrace = (teamAddress?: string) => {
           })
         }
 
-        if (!cancelled) setTrace(enriched)
+        if (!cancelled) {
+          setTrace(enriched)
+          initialFetchDone = true
+        }
       } catch {
-        if (!cancelled) setTrace([])
+        // On polling errors, keep existing trace data instead of wiping it
       } finally {
         if (!cancelled) setLoading(false)
       }
