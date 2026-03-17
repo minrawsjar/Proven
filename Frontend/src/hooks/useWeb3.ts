@@ -715,6 +715,7 @@ export const useMilestoneLockState = (teamAddress?: string) => {
             })
 
             for (const log of logs) {
+              if (log.args.team?.toLowerCase() !== addr.toLowerCase()) continue
               const milestoneId = Number(log.args.milestoneId ?? 255)
               if (milestoneId >= 0 && milestoneId <= 2) {
                 const m = milestoneId + 1
