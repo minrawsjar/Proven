@@ -579,9 +579,6 @@ Proven/
 │   ├── test/
 │   │   └── fuzz/
 │   └── README.md
-│
-├── DEPLOY.md
-├── deploy.sh
 ├── LICENSE
 └── README.md
 ```
