@@ -44,8 +44,8 @@ Proven replaces time locks with **milestone based vesting liquidity**:
 ┌─────────────────────────────────┐           ┌─────────────────────────────────┐
 │                                 │           │                                 │
 │  ERC-20 Token (founder deploys) │           │                                 │
-│         │                       │  events   │   RiskGuardRSC.sol              │
-│  Uniswap v4 Pool + ProvenHook   │──────────▶│                                 │
+│                                 │           │  events                         │
+│  Uniswap v4 Pool + ProvenHook   │──────────▶│   RiskGuardRSC.sol              │
 │                                 │           │   • Subscribes to pool events.  │
 │  ProvenVault (holds locked LP)  │◀──────────│   • Tracks TVL,volume, users    │
 │         │                       │ callbacks │   • Scores 5 rug signals        │
@@ -77,6 +77,25 @@ Proven replaces time locks with **milestone based vesting liquidity**:
 |---|---|---|
 | Reactive Network System Contract | Lasna | `0x0000000000000000000000000000000000fffFfF` |
 | Callback Proxy | Unichain Sepolia | `0x9299472A6399Fd1027ebF067571Eb3e3D7837FC4` |
+
+### Deployed Contracts (Mar 16 2026)
+
+| Contract | Chain | Address |
+|---|---|---|
+| VestingHook | Unichain Sepolia | [`0x6127Fe036B9cd6435404E56365f904167298C640`](https://sepolia.uniscan.xyz/address/0x6127Fe036B9cd6435404E56365f904167298C640) |
+| MockVaultManager | Unichain Sepolia | [`0x8b1800805b478fb66bb58331662899157cec4dd4`](https://sepolia.uniscan.xyz/address/0x8b1800805b478fb66bb58331662899157cec4dd4) |
+| ProvenCallback | Unichain Sepolia | [`0xF61B21a60FeE27d36099BA7A7bc81E96cC4B2a0A`](https://sepolia.uniscan.xyz/address/0xF61B21a60FeE27d36099BA7A7bc81E96cC4B2a0A) |
+| RiskGuardRSC | Lasna Testnet | [`0x9796f833700b32aF4A3ebC837C2DCd35BEf56118`](https://lasna.reactscan.net/address/0x9796f833700b32aF4A3ebC837C2DCd35BEf56118) |
+
+### Live Demo Pools
+
+| Pool | Team | Unlock State | Dashboard |
+|---|---|---|---|
+| Nova Protocol | `0xdae6...1a3c` | 0% — Fully locked | [View](https://provenprotocol.dev/verify/0xdae6cf499756455de55eaad590d59609870e1a3c) |
+| Stellar DeFi | `0xca09...5d67` | 34% — M1 unlocked | [View](https://provenprotocol.dev/verify/0xca093b5e50df91117440f9dfd1542b8f42075d67) |
+| Orbit Finance | `0x6da9...0f2a` | 67% — M1+M2 unlocked | [View](https://provenprotocol.dev/verify/0x6da90fd521d6cff9d373204038459addca260f2a) |
+| Zenith Labs | `0x6995...ec6f` | 100% — Fully unlocked | [View](https://provenprotocol.dev/verify/0x699507c6aeb4268ff4dc05721c803dbe466cec6f) |
+| Shadow Token | `0x079b...2e14` | 34% + RAGE LOCKED 30d | [View](https://provenprotocol.dev/verify/0x079bb29d652294b01f4bdf86bb318277e0892e14) |
 
 ---
 
@@ -627,19 +646,6 @@ forge script script/DeployReactive.s.sol --rpc-url $LASNA_RPC --broadcast
 
 ---
 
-## Why Proven Is Different
-
-| Traditional Time Lock | Proven |
-|---|---|
-| LP unlocks after X days regardless | LP unlocks only when milestones are verified on chain |
-| No monitoring after lock | 5 signals monitored continuously every block |
-| Founder just waits it out | Founder must build a real project to unlock |
-| No response to suspicious activity | Automatic Rage Lock if rug signals detected |
-| Centralized (team holds keys) | Fully autonomous (Reactive Smart Contracts) |
-| Single chain | Cross chain (Unichain ↔ Reactive Network) |
-
----
-
 ## Tech Stack
 
 | Layer | Technology |
@@ -653,17 +659,6 @@ forge script script/DeployReactive.s.sol --rpc-url $LASNA_RPC --broadcast
 ---
 
 ## Key Concepts
-
-### Why Unlock LP at All?
-
-Locking LP forever means no rational founder would use Proven. Progressive unlock based on milestones creates the right incentive:
-
-- **Founders** are motivated to build (they get capital back by succeeding)
-- **Investors** are protected (LP can't leave until real growth happens)
-- **Bad actors** are blocked (rug signals extend the lock)
-- **Good actors** are rewarded (milestones met and partial unlock follows)
-
-Think of it like startup equity vesting: a founder gets their shares over 4 years as they build the company. Proven does the same thing for token liquidity, verified on chain, with no board of directors needed.
 
 ### What If Milestones Are Never Met?
 

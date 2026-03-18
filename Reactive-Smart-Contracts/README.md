@@ -58,8 +58,8 @@ Each signal contributes to a composite risk score (`0-100`) used to decide wheth
 
 | Contract | Chain | Address |
 |---|---|---|
-| ProvenCallback | Unichain Sepolia (1301) | [0xeaD222788a469141e3dee4e777F882ddA0b67c9F](https://sepolia.uniscan.xyz/address/0xeaD222788a469141e3dee4e777F882ddA0b67c9F) |
-| RiskGuardRSC | Lasna Testnet (5318007) | [0xEE8DAE2D3f142052bDb704Ba0D94e04eC1680193](https://lasna.reactscan.net/address/0xEE8DAE2D3f142052bDb704Ba0D94e04eC1680193) |
+| ProvenCallback | Unichain Sepolia (1301) | [0xF61B21a60FeE27d36099BA7A7bc81E96cC4B2a0A](https://sepolia.uniscan.xyz/address/0xF61B21a60FeE27d36099BA7A7bc81E96cC4B2a0A) |
+| RiskGuardRSC | Lasna Testnet (5318007) | [0x9796f833700b32aF4A3ebC837C2DCd35BEf56118](https://lasna.reactscan.net/address/0x9796f833700b32aF4A3ebC837C2DCd35BEf56118) |
 
 ---
 
@@ -100,7 +100,3 @@ forge create src/RiskGuardRSC.sol:RiskGuardRSC --rpc-url lasna --broadcast --pri
 ```
 
 ---
-
-## Note on naming
-
-The old name `TimeLockRSC` was legacy. `RiskGuardRSC` better reflects behavior through risk driven guarding with milestone logic and penalty lock windows.

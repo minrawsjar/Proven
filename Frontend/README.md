@@ -62,17 +62,6 @@ Frontend/
 ├── package.json
 └── vite.config.ts
 ```
-
-See also:
-
-- [Frontend/src/README.md](src/README.md)
-- [Frontend/src/pages/README.md](src/pages/README.md)
-- [Frontend/src/components/README.md](src/components/README.md)
-- [Frontend/src/hooks/README.md](src/hooks/README.md)
-- [Frontend/src/store/README.md](src/store/README.md)
-- [Frontend/src/config/README.md](src/config/README.md)
-- [Frontend/src/utils/README.md](src/utils/README.md)
-
 ---
 
 ## Notes
@@ -82,7 +71,7 @@ See also:
 
 ---
 
-## Web3 integration (current)
+## Web3 integration
 
 The frontend is already integrated with `wagmi` + `viem` in `src/hooks/useWeb3.ts`.
 

@@ -174,8 +174,8 @@ Net effect: teams can unlock LP only as performance milestones are met; attempte
 
 | Contract | Chain | Address |
 |---|---|---|
-| VestingHook | Unichain Sepolia (1301) | [0xC7bFe6835bC6a4d9A32f0F34A75C21A0982D8640](https://sepolia.uniscan.xyz/address/0xC7bFe6835bC6a4d9A32f0F34A75C21A0982D8640) |
-| MockVaultManager | Unichain Sepolia (1301) | [0xDb00c77688d05d2122673a0dE9Ee06eBa15A42E5](https://sepolia.uniscan.xyz/address/0xDb00c77688d05d2122673a0dE9Ee06eBa15A42E5) |
+| VestingHook | Unichain Sepolia (1301) | [0x6127Fe036B9cd6435404E56365f904167298C640](https://sepolia.uniscan.xyz/address/0x6127Fe036B9cd6435404E56365f904167298C640) |
+| MockVaultManager | Unichain Sepolia (1301) | [0x8b1800805b478fb66bb58331662899157cec4dd4](https://sepolia.uniscan.xyz/address/0x8b1800805b478fb66bb58331662899157cec4dd4) |
 
 ---
 
