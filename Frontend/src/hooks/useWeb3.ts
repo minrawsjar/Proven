@@ -744,44 +744,19 @@ export const useMilestoneLockState = (teamAddress?: string) => {
           })
           const pct = Number(pctRaw)
           if (pct > 0) {
-            // Read milestone unlock percentages from registration tx to compute cumulative thresholds
-            let milestonePcts: number[] = []
-            try {
-              const regCurrentBlock = await unichainClient.getBlockNumber()
-              let regCursor = regCurrentBlock
-              let regLog: Log | undefined
-              for (let i = 0; i < 600; i++) {
-                const fromBlock = regCursor > 9_500n ? regCursor - 9_500n : 0n
-                const logs = await unichainClient.getLogs({
-                  address: VESTING_HOOK_ADDRESS,
-                  event: positionRegisteredEvent,
-                  args: { team: addr },
-                  fromBlock,
-                  toBlock: regCursor,
-                })
-                if (logs.length > 0) { regLog = logs[logs.length - 1] as Log; break }
-                if (fromBlock === 0n) break
-                regCursor = fromBlock - 1n
-              }
-              if (regLog?.transactionHash) {
-                const tx = await unichainClient.getTransaction({ hash: regLog.transactionHash })
-                const decoded = decodeFunctionData({ abi: vestingHookAbi, data: tx.input })
-                if (decoded.functionName === 'registerVestingPosition') {
-                  const rawMs = decoded.args?.[0] as readonly unknown[]
-                  if (rawMs?.length === 3) {
-                    milestonePcts = rawMs.map((r: any) => Number(r.unlockPct ?? r[2] ?? 0))
-                  }
-                }
-              }
-            } catch { /* use equal split fallback */ }
-
-            if (milestonePcts.length !== 3) milestonePcts = [34, 33, 33]
-
-            let cumSum = 0
+            // Infer which milestones are complete using cumulative percentage.
+            // Common splits: [34,33,33], [30,40,30], [25,50,25], [20,30,50], etc.
+            // If pct >= 100 → all 3 done; pct > 0 but < 100 → at least M1 done;
+            // For accurate inference, use thirds of total (cumulative):
+            //   M1 done if pct >= ~34, M2 done if pct >= ~67, M3 done if pct >= 100.
+            // We conservatively use the actual pct value: any pct > 0 means at least
+            // one milestone, and we walk through even thirds as lower bound.
+            const thirds = [34, 67, 100]
             for (let i = 0; i < 3; i++) {
-              cumSum += milestonePcts[i]
-              if (pct >= cumSum) unlocked.add(i + 1)
+              if (pct >= thirds[i]) unlocked.add(i + 1)
             }
+            // Edge case: if pct > 0 but < 34, at least milestone 0 was hit
+            if (pct > 0 && unlocked.size === 0) unlocked.add(1)
           }
         } catch { /* unlockedPctByTeam read failed, keep defaults */ }
       }
