@@ -684,7 +684,7 @@ export const useRugSignals = (teamAddress?: string) => {
   return { occurredSignals, lastTxBySignal, triggerMetaBySignal }
 }
 
-export const useMilestoneLockState = (teamAddress?: string) => {
+export const useMilestoneLockState = (teamAddress?: string, registeredAt?: bigint) => {
   const [lockedMilestones, setLockedMilestones] = useState<number[]>([1, 2, 3])
   const [unlockedMilestones, setUnlockedMilestones] = useState<number[]>([])
   const [unlockTxByMilestone, setUnlockTxByMilestone] = useState<Record<string, string>>({})
@@ -694,6 +694,18 @@ export const useMilestoneLockState = (teamAddress?: string) => {
     let cancelled = false
     const addr = teamAddress as `0x${string}`
 
+    const parseLogs = (logs: any[], unlocked: Set<number>, unlockTx: Record<string, string>) => {
+      for (const log of logs) {
+        if (log.args.team?.toLowerCase() !== addr.toLowerCase()) continue
+        const milestoneId = Number(log.args.milestoneId ?? 255)
+        if (milestoneId >= 0 && milestoneId <= 2) {
+          const m = milestoneId + 1
+          unlocked.add(m)
+          if (log.transactionHash) unlockTx[`M${m}`] = log.transactionHash
+        }
+      }
+    }
+
     const fetch = async () => {
       const unlocked = new Set<number>()
       const unlockTx: Record<string, string> = {}
@@ -701,9 +713,10 @@ export const useMilestoneLockState = (teamAddress?: string) => {
       try {
         const currentBlock = await unichainClient.getBlockNumber()
         const windowSize = 9_500n
-        let cursor = currentBlock
 
-        for (let chunk = 0; chunk < 60; chunk++) {
+        // Strategy 1: Backward scan from current block (covers recent events)
+        let cursor = currentBlock
+        for (let chunk = 0; chunk < 30; chunk++) {
           const fromBlock = cursor > windowSize ? cursor - windowSize : 0n
           try {
             const logs = await unichainClient.getLogs({
@@ -713,27 +726,43 @@ export const useMilestoneLockState = (teamAddress?: string) => {
               fromBlock,
               toBlock: cursor,
             })
-
-            for (const log of logs) {
-              if (log.args.team?.toLowerCase() !== addr.toLowerCase()) continue
-              const milestoneId = Number(log.args.milestoneId ?? 255)
-              if (milestoneId >= 0 && milestoneId <= 2) {
-                const m = milestoneId + 1
-                unlocked.add(m)
-                if (log.transactionHash) unlockTx[`M${m}`] = log.transactionHash
-              }
-            }
+            parseLogs(logs, unlocked, unlockTx)
           } catch { /* skip chunk */ }
-
           if (unlocked.size === 3 || fromBlock === 0n) break
           cursor = fromBlock - 1n
+        }
+
+        // Strategy 2: If not found and we know registeredAt, scan FORWARD from registration block.
+        // Unichain Sepolia has ~1 sec/block, so estimate block from timestamp.
+        if (unlocked.size === 0 && registeredAt && registeredAt > 0n) {
+          try {
+            const currentTimestamp = BigInt(Math.floor(Date.now() / 1000))
+            const blocksAgo = currentTimestamp - registeredAt
+            const estRegBlock = currentBlock > blocksAgo ? currentBlock - blocksAgo : 0n
+            // Scan forward from estimated registration block (unlocks happen within hours)
+            let fwdCursor = estRegBlock > 5000n ? estRegBlock - 5000n : 0n
+            for (let chunk = 0; chunk < 30; chunk++) {
+              const toBlock = fwdCursor + windowSize < currentBlock ? fwdCursor + windowSize : currentBlock
+              try {
+                const logs = await unichainClient.getLogs({
+                  address: VESTING_HOOK_ADDRESS,
+                  event: milestoneUnlockedEvent,
+                  args: { team: addr },
+                  fromBlock: fwdCursor,
+                  toBlock,
+                })
+                parseLogs(logs, unlocked, unlockTx)
+              } catch { /* skip chunk */ }
+              if (unlocked.size >= 3 || toBlock >= currentBlock) break
+              fwdCursor = toBlock + 1n
+            }
+          } catch { /* forward scan failed */ }
         }
       } catch {
         // Keep defaults when logs are unavailable.
       }
 
       // Fallback: infer milestone completion from on-chain unlockedPctByTeam
-      // when event logs are not found (e.g. outside RPC log window).
       if (unlocked.size === 0) {
         try {
           const pctRaw = await unichainClient.readContract({
@@ -744,18 +773,10 @@ export const useMilestoneLockState = (teamAddress?: string) => {
           })
           const pct = Number(pctRaw)
           if (pct > 0) {
-            // Infer which milestones are complete using cumulative percentage.
-            // Common splits: [34,33,33], [30,40,30], [25,50,25], [20,30,50], etc.
-            // If pct >= 100 → all 3 done; pct > 0 but < 100 → at least M1 done;
-            // For accurate inference, use thirds of total (cumulative):
-            //   M1 done if pct >= ~34, M2 done if pct >= ~67, M3 done if pct >= 100.
-            // We conservatively use the actual pct value: any pct > 0 means at least
-            // one milestone, and we walk through even thirds as lower bound.
             const thirds = [34, 67, 100]
             for (let i = 0; i < 3; i++) {
               if (pct >= thirds[i]) unlocked.add(i + 1)
             }
-            // Edge case: if pct > 0 but < 34, at least milestone 0 was hit
             if (pct > 0 && unlocked.size === 0) unlocked.add(1)
           }
         } catch { /* unlockedPctByTeam read failed, keep defaults */ }
@@ -772,9 +793,9 @@ export const useMilestoneLockState = (teamAddress?: string) => {
     }
 
     fetch()
-    const interval = setInterval(fetch, 15_000)
+    const interval = setInterval(fetch, 30_000)
     return () => { cancelled = true; clearInterval(interval) }
-  }, [teamAddress])
+  }, [teamAddress, registeredAt])
 
   return { lockedMilestones, unlockedMilestones, unlockTxByMilestone }
 }

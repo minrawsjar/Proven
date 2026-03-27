@@ -45,7 +45,7 @@ export function InvestorDashboard() {
   const { score: riskScore, tier: riskTier } = useRiskScore(readAddress || undefined)
   const { trace: riskScoreTrace, loading: riskTraceLoading } = useRiskScoreTrace(readAddress || undefined)
   const { occurredSignals, lastTxBySignal, triggerMetaBySignal } = useRugSignals(readAddress || undefined)
-  const { lockedMilestones, unlockedMilestones, unlockTxByMilestone } = useMilestoneLockState(readAddress || undefined)
+  const { lockedMilestones, unlockedMilestones, unlockTxByMilestone } = useMilestoneLockState(readAddress || undefined, positionData?.registeredAt)
   const { milestones: configuredMilestones, loading: milestoneConfigLoading, error: milestoneConfigError } = useMilestoneConfig(readAddress || undefined)
   const tokenAddr = positionData?.tokenAddr
   const { info: tokenInfo } = useTokenInfo(
