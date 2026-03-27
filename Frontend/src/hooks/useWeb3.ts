@@ -732,6 +732,60 @@ export const useMilestoneLockState = (teamAddress?: string) => {
         // Keep defaults when logs are unavailable.
       }
 
+      // Fallback: infer milestone completion from on-chain unlockedPctByTeam
+      // when event logs are not found (e.g. outside RPC log window).
+      if (unlocked.size === 0) {
+        try {
+          const pctRaw = await unichainClient.readContract({
+            address: VESTING_HOOK_ADDRESS,
+            abi: vestingHookAbi,
+            functionName: 'unlockedPctByTeam',
+            args: [addr],
+          })
+          const pct = Number(pctRaw)
+          if (pct > 0) {
+            // Read milestone unlock percentages from registration tx to compute cumulative thresholds
+            let milestonePcts: number[] = []
+            try {
+              const regCurrentBlock = await unichainClient.getBlockNumber()
+              let regCursor = regCurrentBlock
+              let regLog: Log | undefined
+              for (let i = 0; i < 600; i++) {
+                const fromBlock = regCursor > 9_500n ? regCursor - 9_500n : 0n
+                const logs = await unichainClient.getLogs({
+                  address: VESTING_HOOK_ADDRESS,
+                  event: positionRegisteredEvent,
+                  args: { team: addr },
+                  fromBlock,
+                  toBlock: regCursor,
+                })
+                if (logs.length > 0) { regLog = logs[logs.length - 1] as Log; break }
+                if (fromBlock === 0n) break
+                regCursor = fromBlock - 1n
+              }
+              if (regLog?.transactionHash) {
+                const tx = await unichainClient.getTransaction({ hash: regLog.transactionHash })
+                const decoded = decodeFunctionData({ abi: vestingHookAbi, data: tx.input })
+                if (decoded.functionName === 'registerVestingPosition') {
+                  const rawMs = decoded.args?.[0] as readonly unknown[]
+                  if (rawMs?.length === 3) {
+                    milestonePcts = rawMs.map((r: any) => Number(r.unlockPct ?? r[2] ?? 0))
+                  }
+                }
+              }
+            } catch { /* use equal split fallback */ }
+
+            if (milestonePcts.length !== 3) milestonePcts = [34, 33, 33]
+
+            let cumSum = 0
+            for (let i = 0; i < 3; i++) {
+              cumSum += milestonePcts[i]
+              if (pct >= cumSum) unlocked.add(i + 1)
+            }
+          }
+        } catch { /* unlockedPctByTeam read failed, keep defaults */ }
+      }
+
       const unlockedSorted = Array.from(unlocked).sort((a, b) => a - b)
       const locked = [1, 2, 3].filter((m) => !unlocked.has(m))
 

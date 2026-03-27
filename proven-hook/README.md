@@ -1,4 +1,4 @@
-# proven-hook
+# Proven-hook (Uniswap v4 hooks)
 
 Uniswap v4 hook contracts deployed on Unichain Sepolia for Proven Protocol.
 

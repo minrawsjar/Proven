@@ -199,12 +199,20 @@ export function InvestorDashboard() {
       : 'Awaiting milestone config'
   const unlockedSet = new Set(unlockedMilestones)
   const milestoneCards = configuredMilestones.length === 3
-    ? configuredMilestones.map((m, i) => ({
-        key: i + 1,
-        pct: m.unlockPct,
-        done: m.complete || unlockedSet.has(i + 1),
-        sub: `${conditionLabel(m.conditionType)} ≥ ${formatMilestoneThreshold(m.conditionType, m.threshold)}`,
-      }))
+    ? (() => {
+        const cumulativePcts: number[] = []
+        let cumSum = 0
+        for (const m of configuredMilestones) {
+          cumSum += m.unlockPct
+          cumulativePcts.push(cumSum)
+        }
+        return configuredMilestones.map((m, i) => ({
+          key: i + 1,
+          pct: m.unlockPct,
+          done: m.complete || unlockedSet.has(i + 1) || (positionData ? positionData.unlockedPct >= cumulativePcts[i] : false),
+          sub: `${conditionLabel(m.conditionType)} ≥ ${formatMilestoneThreshold(m.conditionType, m.threshold)}`,
+        }))
+      })()
     : [30, 70, 100].map((m, i) => ({
         key: i + 1,
         pct: m,

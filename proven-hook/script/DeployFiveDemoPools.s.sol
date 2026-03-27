@@ -124,7 +124,7 @@ contract DeployFiveDemoPools is Script {
     function _deriveTeamKeys() internal {
         uint256 N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140;
         for (uint256 i = 0; i < 5; i++) {
-            s_teamPks[i] = (uint256(keccak256(abi.encodePacked(s_deployerPk, "demo_v3_", i))) % (N - 1)) + 1;
+            s_teamPks[i] = (uint256(keccak256(abi.encodePacked(s_deployerPk, "demo_v4_", i))) % (N - 1)) + 1;
             s_teams[i] = vm.addr(s_teamPks[i]);
         }
         console.log("");
